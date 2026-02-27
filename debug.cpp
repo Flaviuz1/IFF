@@ -28,8 +28,8 @@ static int constantInstructionSmall(const char *name, Chunk *chunk, int offset)
 
 static int constantInstructionBig(const char *name, Chunk *chunk, int offset)
 {
-    uint8_t constant_low = chunk->code[offset + 3];
-    uint8_t constant_mid = chunk->code[offset + 2];
+    uint8_t constant_low  = chunk->code[offset + 3];
+    uint8_t constant_mid  = chunk->code[offset + 2];
     uint8_t constant_high = chunk->code[offset + 1];
     uint32_t constant = ((constant_high << 16) | (constant_mid << 8) | (constant_low));
     printf("%-16s %4d '", name, constant);
@@ -58,6 +58,18 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return constantInstructionSmall("OP_CONSTANT", chunk, offset);
     case OP_CONSTANT_BIG:
         return constantInstructionBig("OP_CONSTANT_BIG", chunk, offset);
+    case OP_NEGATE:
+        return simpleInstruction("OP_NEGATE", offset);
+    case OP_ADD:
+        return simpleInstruction("OP_ADD", offset);
+    case OP_SUBTRACT:
+        return simpleInstruction("OP_SUBTRACT", offset);
+    case OP_MULTIPLY:
+        return simpleInstruction("OP_MULTIPLY", offset);
+    case OP_DIVIDE:
+        return simpleInstruction("OP_DIVIDE", offset);
+    case OP_RAISETOPOWER:
+        return simpleInstruction("OP_RAISETOPOWER", offset);
     default:
         printf("Unknown opcode %d\n", instruction);
         return offset + 1;
