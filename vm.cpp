@@ -1,8 +1,10 @@
 #include <cstdio>
 #include <cmath>
+#include <string>
 #include "vm.hpp"
 #include "debug.hpp"
 #include "common.hpp"
+#include "compiler.hpp"
 
 VM vm;
 
@@ -11,8 +13,11 @@ static void resetStack() {
 }
 
 void push(Value value){
-    *vm.stackTop = value;
-    vm.stackTop++;
+    if (vm.stackTop >= vm.stack + STACK_MAX) {
+        printf("Stack overflow!\n");
+        exit(1);
+    }
+    *vm.stackTop++ = value;
 }
 
 Value pop(){
@@ -69,7 +74,7 @@ static InterpretResult run() { // to be made faster after finishing
             case OP_SUBTRACT:     {BINARY_OP(-);  break;}
             case OP_MULTIPLY:     {BINARY_OP(*);  break;}
             case OP_DIVIDE:       {BINARY_OP(/);  break;}
-            case OP_RAISETOPOWER: {POWER_RAISE(); break;}
+            case OP_POWER: {POWER_RAISE(); break;}
             case OP_RETURN: {
                 printValue(pop());
                 printf("\n");
@@ -84,8 +89,20 @@ static InterpretResult run() { // to be made faster after finishing
     #undef POWER_RAISE
 }
 
-InterpretResult interpret(Chunk* chunk) {
-    vm.chunk = chunk;
+InterpretResult interpret(const char* source) {
+    Chunk chunk;
+    initChunk(&chunk);
+
+    if(!compile(source, &chunk)){
+        freeChunk(&chunk);
+        return INTERPRET_COMPILE_ERROR;
+    }
+
+    vm.chunk = &chunk;
     vm.ip = vm.chunk->code;
-    return run();
+
+    InterpretResult result = run();
+
+    freeChunk(&chunk);
+    return result;
 }

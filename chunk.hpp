@@ -6,14 +6,35 @@
 enum OpCode
 {
     OP_RETURN,
+    // Constants
     OP_CONSTANT,
     OP_CONSTANT_BIG,
+    // Literals
+    OP_NULL,
+    OP_TRUE,
+    OP_FALSE,
+    // Arithmetic
     OP_NEGATE,
     OP_ADD,
     OP_SUBTRACT,
     OP_MULTIPLY,
     OP_DIVIDE,
-    OP_RAISETOPOWER
+    OP_MODULO,
+    OP_POWER,
+    // Bitwise
+    OP_SHIFT_LEFT,
+    OP_SHIFT_RIGHT,
+    // Comparison
+    OP_EQUAL,
+    OP_NOT_EQUAL,
+    OP_GREATER,
+    OP_GREATER_EQUAL,
+    OP_LESS,
+    OP_LESS_EQUAL,
+    // Logical
+    OP_NOT,
+    OP_AND,
+    OP_OR,
 };
 
 struct Chunk
