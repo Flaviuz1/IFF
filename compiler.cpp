@@ -2,6 +2,9 @@
 #include "compiler.hpp"
 #include "common.hpp"
 #include "chunk.hpp"
+#ifdef DEBUG_PRINT_CODE
+    #include "debug.hpp"
+#endif
 #include <string>
 #include <cstdio>
 #include <cstdlib>
@@ -108,6 +111,11 @@ static void emitReturn() {
 
 static void endCompiler() {
     emitReturn();
+    #ifdef DEBUG_PRINT_CODE
+        if (!parser.hadError) {
+            disassembleChunk(currentChunk(), "code");
+        }
+    #endif
 }
 
 static std::vector<uint8_t> makeConstant(Value value) {
@@ -134,7 +142,7 @@ static void grouping() {
 
 static void number() {
     double value = strtod(parser.previous.start, nullptr);
-    emitConstant(value);
+    emitConstant(NUMBER_VAL(value));
 }
 
 static void unary() {
@@ -172,6 +180,16 @@ static void binary() {
         case TOKEN_LESS:          emitByte(OP_LESS);         break;
         case TOKEN_LESS_EQUAL:    emitByte(OP_LESS_EQUAL);   break;
         default: return;
+    }
+}
+
+static void literal() {
+    switch (parser.previous.type) {
+        case TOKEN_FALSE: emitByte(OP_FALSE); break;
+        case TOKEN_TRUE: emitByte(OP_TRUE); break;
+        case TOKEN_NULL: emitByte(OP_NULL); break;
+        default:
+            return;
     }
 }
 
@@ -230,16 +248,16 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_AND,      {nullptr, nullptr, PREC_NONE}},
     {TOKEN_CLASS,    {nullptr, nullptr, PREC_NONE}},
     {TOKEN_ELSE,     {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_FALSE,    {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_FALSE,    {literal, nullptr, PREC_NONE}},
     {TOKEN_FOR,      {nullptr, nullptr, PREC_NONE}},
     {TOKEN_FUNC,     {nullptr, nullptr, PREC_NONE}},
     {TOKEN_IF,       {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_NULL,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_NULL,     {literal, nullptr, PREC_NONE}},
     {TOKEN_OR,       {nullptr, nullptr, PREC_NONE}},
     {TOKEN_RETURN,   {nullptr, nullptr, PREC_NONE}},
     {TOKEN_SUPER,    {nullptr, nullptr, PREC_NONE}},
     {TOKEN_SELF,     {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_TRUE,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_TRUE,     {literal, nullptr, PREC_NONE}},
     {TOKEN_VAR,      {nullptr, nullptr, PREC_NONE}},
     {TOKEN_WHILE,    {nullptr, nullptr, PREC_NONE}},
     {TOKEN_IN,       {nullptr, nullptr, PREC_NONE}},

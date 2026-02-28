@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cmath>
 #include <string>
+#include <cstdarg>
 #include "vm.hpp"
 #include "debug.hpp"
 #include "common.hpp"
@@ -10,6 +11,20 @@ VM vm;
 
 static void resetStack() {
     vm.stackTop = vm.stack;
+}
+
+static void runtimeError(const char* format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    fputs("\n", stderr);
+
+    size_t instrucion = vm.ip - vm.chunk->code - 1;
+    int line = vm.chunk->lines[instrucion];
+    fprintf(stderr, "[line %d] in script\n", line);
+
+    resetStack();
 }
 
 void push(Value value){
@@ -25,6 +40,10 @@ Value pop(){
     return *vm.stackTop;
 }
 
+static Value peek(int distance) {
+    return vm.stackTop[-1 - distance];
+}
+
 void initVM(){
     resetStack();
 }
@@ -36,8 +55,24 @@ void freeVM(){
 static InterpretResult run() { // to be made faster after finishing
     #define READ_BYTE() (*vm.ip++)
     #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
-    #define BINARY_OP(op) do{ double b = pop(); *(vm.stackTop - 1) = *(vm.stackTop - 1) op b; } while(false)
-    #define POWER_RAISE() do{ double b = pop(); *(vm.stackTop - 1) = pow(*(vm.stackTop - 1), b); } while(false)
+    
+    #define BINARY_OP(valueType, op) do{ \
+        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
+           runtimeError("Operands must be numbers."); \
+           return INTERPRET_RUNTIME_ERROR; \ 
+        } \
+        double b = AS_NUMBER(pop()); \
+        *(vm.stackTop - 1) = valueType(AS_NUMBER(*(vm.stackTop - 1)) op b); \
+    } while(false)
+
+    #define POWER_RAISE(valueType) do{ \
+        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
+           runtimeError("Operands must be numbers."); \
+           return INTERPRET_RUNTIME_ERROR; \ 
+        } \
+        double b = AS_NUMBER(pop()); \
+        *(vm.stackTop - 1) = valueType(pow(AS_NUMBER(*(vm.stackTop - 1)), b)); \
+    } while(false)
     //no define for big constants because of irregularities in compiling
 
     for(;;){
@@ -53,7 +88,7 @@ static InterpretResult run() { // to be made faster after finishing
         #endif
         uint8_t instruction;
         switch (instruction = READ_BYTE()){
-            case OP_CONSTANT: {
+            case OP_CONSTANT:     {
                 Value constant = READ_CONSTANT();
                 push(constant);
                 break;
@@ -66,19 +101,35 @@ static InterpretResult run() { // to be made faster after finishing
                 push(constant);
                 break;
             }
-            case OP_NEGATE: {
-                *(vm.stackTop - 1) *= -1;
+            case OP_ADD:          {BINARY_OP(NUMBER_VAL, +);  break;}
+            case OP_SUBTRACT:     {BINARY_OP(NUMBER_VAL, -);  break;}
+            case OP_MULTIPLY:     {BINARY_OP(NUMBER_VAL, *);  break;}
+            case OP_DIVIDE:       {BINARY_OP(NUMBER_VAL, /);  break;}
+            case OP_POWER:        {POWER_RAISE(NUMBER_VAL);   break;}
+            case OP_NEGATE:       {
+                if(!IS_NUMBER(peek(0))) {
+                    runtimeError("Operand must be a number.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(NUMBER_VAL(-AS_NUMBER(pop())));
                 break;
             }
-            case OP_ADD:          {BINARY_OP(+);  break;}
-            case OP_SUBTRACT:     {BINARY_OP(-);  break;}
-            case OP_MULTIPLY:     {BINARY_OP(*);  break;}
-            case OP_DIVIDE:       {BINARY_OP(/);  break;}
-            case OP_POWER: {POWER_RAISE(); break;}
-            case OP_RETURN: {
+            case OP_RETURN:       {
                 printValue(pop());
                 printf("\n");
                 return INTERPRET_OK;
+            }
+            case OP_TRUE:         {
+                push(BOOL_VAL(true));
+                break;
+            }
+            case OP_FALSE:        {
+                push(BOOL_VAL(false));
+                break;
+            }
+            case OP_NULL:         {
+                push(NULL_VAL);
+                break;
             }
         }
     }
