@@ -5,10 +5,9 @@
 #include "vm.hpp"
 #include <cstdio>
 #include <cstdlib>
-#include <string>
+#include <cstring>
 #include <iostream>
 #include <fstream>
-#include <sstream>
 
 static void repl() {
     char line[1024];
@@ -18,6 +17,7 @@ static void repl() {
             printf("\n");
             break;
         }
+        if (strncmp(line, "exit", 4) == 0) break;
         interpret(line);
     }
 }

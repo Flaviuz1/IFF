@@ -5,6 +5,7 @@
 #include <string>
 #include <cstdio>
 #include <cstdlib>
+#include <unordered_map>
 
 struct Parser {
     Token previous;
@@ -174,83 +175,83 @@ static void binary() {
     }
 }
 
-ParseRule rules[] = {
+static std::unordered_map<TokenType, ParseRule> rules = {
     // Single-character tokens
-    {grouping, nullptr, PREC_NONE},  // TOKEN_LEFT_PAREN
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_RIGHT_PAREN
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_LEFT_BRACKET
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_RIGHT_BRACKET
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_LEFT_BRACE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_RIGHT_BRACE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_COMMA
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_DOT
-    {unary,    binary,  PREC_TERM},  // TOKEN_MINUS
-    {nullptr,  binary,  PREC_TERM},  // TOKEN_PLUS
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_SEMICOLON
-    {nullptr,  binary,  PREC_FACTOR},// TOKEN_SLASH
-    {nullptr,  binary,  PREC_FACTOR},// TOKEN_STAR
-    {nullptr,  binary,  PREC_POWER}, // TOKEN_CARET
-    {nullptr,  binary,  PREC_FACTOR},// TOKEN_PERCENT
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_QMARK
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_COLON
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_DOLSIGN
+    {TOKEN_LEFT_PAREN,    {grouping, nullptr, PREC_NONE}},
+    {TOKEN_RIGHT_PAREN,   {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_LEFT_BRACKET,  {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_RIGHT_BRACKET, {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_LEFT_BRACE,    {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_RIGHT_BRACE,   {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_COMMA,         {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_DOT,           {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_MINUS,         {unary,    binary,  PREC_TERM}},
+    {TOKEN_PLUS,          {nullptr,  binary,  PREC_TERM}},
+    {TOKEN_SEMICOLON,     {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_SLASH,         {nullptr,  binary,  PREC_FACTOR}},
+    {TOKEN_STAR,          {nullptr,  binary,  PREC_FACTOR}},
+    {TOKEN_CARET,         {nullptr,  binary,  PREC_POWER}},
+    {TOKEN_PERCENT,       {nullptr,  binary,  PREC_FACTOR}},
+    {TOKEN_QMARK,         {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_COLON,         {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_DOLSIGN,       {nullptr,  nullptr, PREC_NONE}},
     // One or two character tokens
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_PLUS_PLUS
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_MINUS_MINUS
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_PLUS_EQUAL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_MINUS_EQUAL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_STAR_EQUAL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_SLASH_EQUAL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_CARET_EQUAL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_PERCENT_EQUAL
-    {unary,    nullptr, PREC_NONE},  // TOKEN_BANG
-    {nullptr,  binary,  PREC_EQUALITY}, // TOKEN_BANG_EQUAL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_EQUAL
-    {nullptr,  binary,  PREC_EQUALITY}, // TOKEN_EQUAL_EQUAL
-    {nullptr,  binary,  PREC_COMPARISON}, // TOKEN_GREATER
-    {nullptr,  binary,  PREC_COMPARISON}, // TOKEN_GREATER_EQUAL
-    {nullptr,  binary,  PREC_COMPARISON}, // TOKEN_LESS
-    {nullptr,  binary,  PREC_COMPARISON}, // TOKEN_LESS_EQUAL
-    {nullptr,  binary,  PREC_SHIFT},  // TOKEN_SHIFT_LEFT
-    {nullptr,  binary,  PREC_SHIFT},  // TOKEN_SHIFT_RIGHT
-    {nullptr,  nullptr, PREC_NONE},   // TOKEN_INTERP_START
-    {nullptr,  nullptr, PREC_NONE},   // TOKEN_INTERP_END
+    {TOKEN_PLUS_PLUS,         {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_MINUS_MINUS,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_PLUS_EQUAL,        {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_MINUS_EQUAL,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_STAR_EQUAL,        {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_SLASH_EQUAL,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_CARET_EQUAL,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_PERCENT_EQUAL,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_BANG,              {unary,   nullptr, PREC_NONE}},
+    {TOKEN_BANG_EQUAL,        {nullptr, binary,  PREC_EQUALITY}},
+    {TOKEN_EQUAL,             {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_EQUAL_EQUAL,       {nullptr, binary,  PREC_EQUALITY}},
+    {TOKEN_GREATER,           {nullptr, binary,  PREC_COMPARISON}},
+    {TOKEN_GREATER_EQUAL,     {nullptr, binary,  PREC_COMPARISON}},
+    {TOKEN_LESS,              {nullptr, binary,  PREC_COMPARISON}},
+    {TOKEN_LESS_EQUAL,        {nullptr, binary,  PREC_COMPARISON}},
+    {TOKEN_SHIFT_LEFT,        {nullptr, binary,  PREC_SHIFT}},
+    {TOKEN_SHIFT_RIGHT,       {nullptr, binary,  PREC_SHIFT}},
+    {TOKEN_INTERP_START,      {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_INTERP_END,        {nullptr, nullptr, PREC_NONE}},
     // Three character tokens
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_SHIFT_LEFT_EQUAL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_SHIFT_RIGHT_EQUAL
+    {TOKEN_SHIFT_LEFT_EQUAL,  {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_SHIFT_RIGHT_EQUAL, {nullptr, nullptr, PREC_NONE}},
     // Literals
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_IDENTIFIER
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_STRING
-    {number,   nullptr, PREC_NONE},  // TOKEN_NUMBER
-    {number,   nullptr, PREC_NONE},  // TOKEN_BINARY
-    {number,   nullptr, PREC_NONE},  // TOKEN_HEX
-    {number,   nullptr, PREC_NONE},  // TOKEN_OCTAL
+    {TOKEN_IDENTIFIER, {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_STRING,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_NUMBER,     {number,  nullptr, PREC_NONE}},
+    {TOKEN_BINARY,     {number,  nullptr, PREC_NONE}},
+    {TOKEN_HEX,        {number,  nullptr, PREC_NONE}},
+    {TOKEN_OCTAL,      {number,  nullptr, PREC_NONE}},
     // Keywords
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_AND
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_CLASS
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_ELSE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_FALSE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_FOR
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_FUNC
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_IF
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_NULL
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_OR
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_RETURN
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_SUPER
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_SELF
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_TRUE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_VAR
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_WHILE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_IN
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_IS
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_BREAK
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_CONTINUE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_MATCH
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_CASE
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_IMPORT
+    {TOKEN_AND,      {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_CLASS,    {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_ELSE,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_FALSE,    {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_FOR,      {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_FUNC,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IF,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_NULL,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_OR,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_RETURN,   {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_SUPER,    {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_SELF,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_TRUE,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_VAR,      {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_WHILE,    {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IN,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IS,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_BREAK,    {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_CONTINUE, {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_MATCH,    {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_CASE,     {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IMPORT,   {nullptr, nullptr, PREC_NONE}},
     // Special
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_ERROR
-    {nullptr,  nullptr, PREC_NONE},  // TOKEN_EOF
+    {TOKEN_ERROR, {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_EOF,   {nullptr, nullptr, PREC_NONE}},
 };
 
 static void parsePrecedence(Precedence precedence) {
