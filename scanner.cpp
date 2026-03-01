@@ -12,6 +12,7 @@ void initScanner(const char* source){
     scanner.current = source;
     scanner.line = 1;
     scanner.tokenQueue.clear();
+    scanner.interpolationDepth = 0;
 }
 
 static bool isAtEnd() {

@@ -148,7 +148,6 @@ static void number() {
 static void unary() {
     TokenType operatorType = parser.previous.type;
 
-    expression();
     parsePrecedence(PREC_UNARY);
 
     switch(operatorType) {
