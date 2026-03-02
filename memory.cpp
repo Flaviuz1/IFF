@@ -1,7 +1,7 @@
 #include <cstdlib>
 #include "memory.hpp"
 
-void *reallocate(void *pointer, size_t oldSize, size_t newSize)
+void *reallocate(void *pointer, size_t newSize)
 {
     if (newSize == 0)
     {
