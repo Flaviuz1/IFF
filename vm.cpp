@@ -88,15 +88,6 @@ static InterpretResult run() { // to be made faster after finishing
         double b = AS_NUMBER(pop()); \
         *(vm.stackTop - 1) = valueType(AS_NUMBER(*(vm.stackTop - 1)) op b); \
     } while(false)
-
-    #define POWER_RAISE(valueType) do{ \
-        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
-           runtimeError("Operands must be numbers."); \
-           return INTERPRET_RUNTIME_ERROR; \
-        } \
-        double b = AS_NUMBER(pop()); \
-        *(vm.stackTop - 1) = valueType(pow(AS_NUMBER(*(vm.stackTop - 1)), b)); \
-    } while(false)
     
     #define BIT_SHIFT_NORMAL(valueType, way) do{ \
         if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
@@ -104,12 +95,21 @@ static InterpretResult run() { // to be made faster after finishing
            return INTERPRET_RUNTIME_ERROR; \
         } \
         int b = (int)AS_NUMBER(pop()); \
-        *(vm.stackTop - 1) = valueType((int)AS_NUMBER(*(vm.stackTop - 1)) way b); \
+        *(vm.stackTop - 1) = valueType((double)((int)AS_NUMBER(*(vm.stackTop - 1)) way b)); \
     } while(false)
 
-    #define EQUAL_CHECK(valueType) do{ \
+    #define EQUAL_CHECK(valueType, negate) do{ \
         Value b = pop(); \
-        *(vm.stackTop - 1) = valueType(valuesEqual(*(vm.stackTop - 1), b)); \
+        *(vm.stackTop - 1) = valueType(negate valuesEqual(*(vm.stackTop - 1), b)); \
+    } while(false)
+
+    #define MOD_POWER(valueType, op) do{ \
+        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
+           runtimeError("Operands must be numbers."); \
+           return INTERPRET_RUNTIME_ERROR; \
+        } \
+        double b = AS_NUMBER(pop()); \
+        *(vm.stackTop - 1) = valueType(op(AS_NUMBER(*(vm.stackTop - 1)), b)); \
     } while(false)
 
     for(;;){
@@ -144,7 +144,8 @@ static InterpretResult run() { // to be made faster after finishing
             case OP_SUBTRACT:     {BINARY_OP(NUMBER_VAL, -);         break;}
             case OP_MULTIPLY:     {BINARY_OP(NUMBER_VAL, *);         break;}
             case OP_DIVIDE:       {BINARY_OP(NUMBER_VAL, /);         break;}
-            case OP_POWER:        {POWER_RAISE(NUMBER_VAL);          break;}
+            case OP_POWER:        {MOD_POWER(NUMBER_VAL, pow);       break;}
+            case OP_MODULO:       {MOD_POWER(NUMBER_VAL, fmod);      break;}
             case OP_INCREMENT:    {CREMENT(NUMBER_VAL, 1);           break;}
             case OP_DECREMENT:    {CREMENT(NUMBER_VAL, -1);          break;}
             case OP_SHIFT_LEFT:   {BIT_SHIFT_NORMAL(NUMBER_VAL, <<); break;}
@@ -172,15 +173,15 @@ static InterpretResult run() { // to be made faster after finishing
             }
             case OP_NOT:          {BANG(BOOL_VAL);                   break;}
             //Assignment
-            case OP_EQUAL:        {}
+            case OP_EQUAL:        {break;}
             //Comparison
             case OP_GREATER:      {BINARY_OP(BOOL_VAL, >);           break;}
             case OP_GREATER_EQUAL:{BINARY_OP(BOOL_VAL, >=);          break;}
             case OP_LESS:         {BINARY_OP(BOOL_VAL, <);           break;}
             case OP_LESS_EQUAL:   {BINARY_OP(BOOL_VAL, <=);          break;}
             //Equality
-            case OP_EQUAL_EQUAL:  {EQUAL_CHECK(BOOL_VAL);            break;}
-            case OP_BANG_EQUAL:   {}
+            case OP_EQUAL_EQUAL:  {EQUAL_CHECK(BOOL_VAL,  );         break;}
+            case OP_BANG_EQUAL:   {EQUAL_CHECK(BOOL_VAL, !);         break;}
             //Return
             case OP_RETURN:       {
                 printValue(pop());
@@ -199,6 +200,7 @@ static InterpretResult run() { // to be made faster after finishing
     #undef CREMENT
     #undef BIT_SHIFT_NORMAL
     #undef EQUAL_CHECK
+    #undef MOD
 }
 
 InterpretResult interpret(const char* source) {

@@ -94,6 +94,8 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_LESS", offset);
     case OP_LESS_EQUAL:    
         return simpleInstruction("OP_LESS_EQUAL", offset);
+    case OP_MODULO:
+        return simpleInstruction("OP_MODULO", offset);
     default:
         printf("Unknown opcode %d\n", instruction);
         return offset + 1;

@@ -173,7 +173,8 @@ static void binary() {
         case TOKEN_CARET:         emitByte(OP_POWER);        break;
         case TOKEN_SHIFT_LEFT:    emitByte(OP_SHIFT_LEFT);   break;
         case TOKEN_SHIFT_RIGHT:   emitByte(OP_SHIFT_RIGHT);  break;
-        case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL);        break;
+        case TOKEN_EQUAL:         emitByte(OP_EQUAL);        break;
+        case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL_EQUAL);  break;
         case TOKEN_BANG_EQUAL:    emitByte(OP_BANG_EQUAL);   break;
         case TOKEN_GREATER:       emitByte(OP_GREATER);      break;
         case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL);break;
