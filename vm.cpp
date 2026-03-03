@@ -44,6 +44,10 @@ static Value peek(int distance) {
     return vm.stackTop[-1 - distance];
 }
 
+static bool isFalsey(Value value) {
+    return IS_NULL(value) || (IS_BOOL(value) && !AS_BOOL(value));
+}
+
 void initVM(){
     resetStack();
 }
@@ -55,6 +59,8 @@ void freeVM(){
 static InterpretResult run() { // to be made faster after finishing
     #define READ_BYTE() (*vm.ip++)
     #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+    #define NEGATE(valueType) (*(vm.stackTop - 1) = valueType(-AS_NUMBER(*(vm.stackTop - 1))))
+    #define BANG(valueType) (*(vm.stackTop - 1) = valueType(isFalsey(*(vm.stackTop - 1))))
     
     #define BINARY_OP(valueType, op) do{ \
         if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
@@ -73,7 +79,7 @@ static InterpretResult run() { // to be made faster after finishing
         double b = AS_NUMBER(pop()); \
         *(vm.stackTop - 1) = valueType(pow(AS_NUMBER(*(vm.stackTop - 1)), b)); \
     } while(false)
-    //no define for big constants because of irregularities in compiling
+    
 
     for(;;){
         #ifdef DEBUG_TRACE_EXECUTION
@@ -111,7 +117,7 @@ static InterpretResult run() { // to be made faster after finishing
                     runtimeError("Operand must be a number.");
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(NUMBER_VAL(-AS_NUMBER(pop())));
+                NEGATE(NUMBER_VAL);
                 break;
             }
             case OP_RETURN:       {
@@ -131,6 +137,7 @@ static InterpretResult run() { // to be made faster after finishing
                 push(NULL_VAL);
                 break;
             }
+            case OP_NOT:          {BANG(BOOL_VAL);            break;}
         }
     }
 
@@ -138,6 +145,8 @@ static InterpretResult run() { // to be made faster after finishing
     #undef READ_CONSTANT
     #undef BINARY_OP
     #undef POWER_RAISE
+    #undef NEGATE
+    #undef BANG
 }
 
 InterpretResult interpret(const char* source) {
