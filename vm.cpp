@@ -48,6 +48,17 @@ static bool isFalsey(Value value) {
     return IS_NULL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
+bool valuesEqual(Value a, Value b) {
+    if (a.type != b.type) return false;
+    switch (a.type) {
+        case VAL_BOOL: return AS_BOOL(a) == AS_BOOL(b);
+        case VAL_NULL: return true;
+        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
+        default:
+            return false;
+    }
+}
+
 void initVM(){
     resetStack();
 }
@@ -87,6 +98,19 @@ static InterpretResult run() { // to be made faster after finishing
         *(vm.stackTop - 1) = valueType(pow(AS_NUMBER(*(vm.stackTop - 1)), b)); \
     } while(false)
     
+    #define BIT_SHIFT_NORMAL(valueType, way) do{ \
+        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
+           runtimeError("Operands must be numbers."); \
+           return INTERPRET_RUNTIME_ERROR; \
+        } \
+        int b = (int)AS_NUMBER(pop()); \
+        *(vm.stackTop - 1) = valueType((int)AS_NUMBER(*(vm.stackTop - 1)) way b); \
+    } while(false)
+
+    #define EQUAL_CHECK(valueType) do{ \
+        Value b = pop(); \
+        *(vm.stackTop - 1) = valueType(valuesEqual(*(vm.stackTop - 1), b)); \
+    } while(false)
 
     for(;;){
         #ifdef DEBUG_TRACE_EXECUTION
@@ -101,6 +125,7 @@ static InterpretResult run() { // to be made faster after finishing
         #endif
         uint8_t instruction;
         switch (instruction = READ_BYTE()){
+            //Constants
             case OP_CONSTANT:     {
                 Value constant = READ_CONSTANT();
                 push(constant);
@@ -114,13 +139,17 @@ static InterpretResult run() { // to be made faster after finishing
                 push(constant);
                 break;
             }
-            case OP_ADD:          {BINARY_OP(NUMBER_VAL, +);   break;}
-            case OP_SUBTRACT:     {BINARY_OP(NUMBER_VAL, -);   break;}
-            case OP_MULTIPLY:     {BINARY_OP(NUMBER_VAL, *);   break;}
-            case OP_DIVIDE:       {BINARY_OP(NUMBER_VAL, /);   break;}
-            case OP_POWER:        {POWER_RAISE(NUMBER_VAL);    break;}
-            case OP_INCREMENT:    {CREMENT(NUMBER_VAL, 1);     break;}
-            case OP_DECREMENT:    {CREMENT(NUMBER_VAL, -1);    break;}
+            //Binary operators
+            case OP_ADD:          {BINARY_OP(NUMBER_VAL, +);         break;}
+            case OP_SUBTRACT:     {BINARY_OP(NUMBER_VAL, -);         break;}
+            case OP_MULTIPLY:     {BINARY_OP(NUMBER_VAL, *);         break;}
+            case OP_DIVIDE:       {BINARY_OP(NUMBER_VAL, /);         break;}
+            case OP_POWER:        {POWER_RAISE(NUMBER_VAL);          break;}
+            case OP_INCREMENT:    {CREMENT(NUMBER_VAL, 1);           break;}
+            case OP_DECREMENT:    {CREMENT(NUMBER_VAL, -1);          break;}
+            case OP_SHIFT_LEFT:   {BIT_SHIFT_NORMAL(NUMBER_VAL, <<); break;}
+            case OP_SHIFT_RIGHT:  {BIT_SHIFT_NORMAL(NUMBER_VAL, >>); break;}
+            //Boolean stuff
             case OP_NEGATE:       {
                 if(!IS_NUMBER(peek(0))) {
                     runtimeError("Operand must be a number.");
@@ -128,11 +157,6 @@ static InterpretResult run() { // to be made faster after finishing
                 }
                 NEGATE(NUMBER_VAL);
                 break;
-            }
-            case OP_RETURN:       {
-                printValue(pop());
-                printf("\n");
-                return INTERPRET_OK;
             }
             case OP_TRUE:         {
                 push(BOOL_VAL(true));
@@ -146,7 +170,23 @@ static InterpretResult run() { // to be made faster after finishing
                 push(NULL_VAL);
                 break;
             }
-            case OP_NOT:          {BANG(BOOL_VAL);             break;}
+            case OP_NOT:          {BANG(BOOL_VAL);                   break;}
+            //Assignment
+            case OP_EQUAL:        {}
+            //Comparison
+            case OP_GREATER:      {BINARY_OP(BOOL_VAL, >);           break;}
+            case OP_GREATER_EQUAL:{BINARY_OP(BOOL_VAL, >=);          break;}
+            case OP_LESS:         {BINARY_OP(BOOL_VAL, <);           break;}
+            case OP_LESS_EQUAL:   {BINARY_OP(BOOL_VAL, <=);          break;}
+            //Equality
+            case OP_EQUAL_EQUAL:  {EQUAL_CHECK(BOOL_VAL);            break;}
+            case OP_BANG_EQUAL:   {}
+            //Return
+            case OP_RETURN:       {
+                printValue(pop());
+                printf("\n");
+                return INTERPRET_OK;
+            }
         }
     }
 
@@ -157,6 +197,8 @@ static InterpretResult run() { // to be made faster after finishing
     #undef NEGATE
     #undef BANG
     #undef CREMENT
+    #undef BIT_SHIFT_NORMAL
+    #undef EQUAL_CHECK
 }
 
 InterpretResult interpret(const char* source) {
