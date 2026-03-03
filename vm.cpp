@@ -61,6 +61,13 @@ static InterpretResult run() { // to be made faster after finishing
     #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
     #define NEGATE(valueType) (*(vm.stackTop - 1) = valueType(-AS_NUMBER(*(vm.stackTop - 1))))
     #define BANG(valueType) (*(vm.stackTop - 1) = valueType(isFalsey(*(vm.stackTop - 1))))
+    #define CREMENT(valueType, delta) do{ \
+        if(!IS_NUMBER(peek(0))) { \
+           runtimeError("Operand must be a number."); \
+           return INTERPRET_RUNTIME_ERROR; \
+        } \
+        *(vm.stackTop - 1) = valueType(AS_NUMBER(*(vm.stackTop - 1)) + delta); \
+    } while(false)
     
     #define BINARY_OP(valueType, op) do{ \
         if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
@@ -107,11 +114,13 @@ static InterpretResult run() { // to be made faster after finishing
                 push(constant);
                 break;
             }
-            case OP_ADD:          {BINARY_OP(NUMBER_VAL, +);  break;}
-            case OP_SUBTRACT:     {BINARY_OP(NUMBER_VAL, -);  break;}
-            case OP_MULTIPLY:     {BINARY_OP(NUMBER_VAL, *);  break;}
-            case OP_DIVIDE:       {BINARY_OP(NUMBER_VAL, /);  break;}
-            case OP_POWER:        {POWER_RAISE(NUMBER_VAL);   break;}
+            case OP_ADD:          {BINARY_OP(NUMBER_VAL, +);   break;}
+            case OP_SUBTRACT:     {BINARY_OP(NUMBER_VAL, -);   break;}
+            case OP_MULTIPLY:     {BINARY_OP(NUMBER_VAL, *);   break;}
+            case OP_DIVIDE:       {BINARY_OP(NUMBER_VAL, /);   break;}
+            case OP_POWER:        {POWER_RAISE(NUMBER_VAL);    break;}
+            case OP_INCREMENT:    {CREMENT(NUMBER_VAL, 1);     break;}
+            case OP_DECREMENT:    {CREMENT(NUMBER_VAL, -1);    break;}
             case OP_NEGATE:       {
                 if(!IS_NUMBER(peek(0))) {
                     runtimeError("Operand must be a number.");
@@ -137,7 +146,7 @@ static InterpretResult run() { // to be made faster after finishing
                 push(NULL_VAL);
                 break;
             }
-            case OP_NOT:          {BANG(BOOL_VAL);            break;}
+            case OP_NOT:          {BANG(BOOL_VAL);             break;}
         }
     }
 
@@ -147,6 +156,7 @@ static InterpretResult run() { // to be made faster after finishing
     #undef POWER_RAISE
     #undef NEGATE
     #undef BANG
+    #undef CREMENT
 }
 
 InterpretResult interpret(const char* source) {

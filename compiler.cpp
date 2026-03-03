@@ -151,7 +151,8 @@ static void unary() {
     parsePrecedence(PREC_UNARY);
 
     switch(operatorType) {
-        case TOKEN_MINUS: emitByte(OP_NEGATE); break;
+        case TOKEN_MINUS:         emitByte(OP_NEGATE);       break;
+        case TOKEN_BANG:          emitByte(OP_NOT);          break;
         default:
             return;
     }
@@ -164,7 +165,6 @@ static void binary() {
     parsePrecedence((Precedence)(rule->precedence + 1));
 
     switch (operatorType) {
-        case TOKEN_BANG:          emitByte(OP_NOT);          break;
         case TOKEN_PLUS:          emitByte(OP_ADD);          break;
         case TOKEN_MINUS:         emitByte(OP_SUBTRACT);     break;
         case TOKEN_STAR:          emitByte(OP_MULTIPLY);     break;
@@ -174,7 +174,7 @@ static void binary() {
         case TOKEN_SHIFT_LEFT:    emitByte(OP_SHIFT_LEFT);   break;
         case TOKEN_SHIFT_RIGHT:   emitByte(OP_SHIFT_RIGHT);  break;
         case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL);        break;
-        case TOKEN_BANG_EQUAL:    emitByte(OP_NOT_EQUAL);    break;
+        case TOKEN_BANG_EQUAL:    emitByte(OP_BANG_EQUAL);   break;
         case TOKEN_GREATER:       emitByte(OP_GREATER);      break;
         case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL);break;
         case TOKEN_LESS:          emitByte(OP_LESS);         break;
@@ -193,29 +193,37 @@ static void literal() {
     }
 }
 
+static void postfixIncrement() {
+    emitByte(OP_INCREMENT);
+}
+
+static void postfixDecrement() {
+    emitByte(OP_DECREMENT);
+}
+
 static std::unordered_map<TokenType, ParseRule> rules = {
     // Single-character tokens
-    {TOKEN_LEFT_PAREN,    {grouping, nullptr, PREC_NONE}},
-    {TOKEN_RIGHT_PAREN,   {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_LEFT_BRACKET,  {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_RIGHT_BRACKET, {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_LEFT_BRACE,    {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_RIGHT_BRACE,   {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_COMMA,         {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_DOT,           {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_MINUS,         {unary,    binary,  PREC_TERM}},
-    {TOKEN_PLUS,          {nullptr,  binary,  PREC_TERM}},
-    {TOKEN_SEMICOLON,     {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_SLASH,         {nullptr,  binary,  PREC_FACTOR}},
-    {TOKEN_STAR,          {nullptr,  binary,  PREC_FACTOR}},
-    {TOKEN_CARET,         {nullptr,  binary,  PREC_POWER}},
-    {TOKEN_PERCENT,       {nullptr,  binary,  PREC_FACTOR}},
-    {TOKEN_QMARK,         {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_COLON,         {nullptr,  nullptr, PREC_NONE}},
-    {TOKEN_DOLSIGN,       {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_LEFT_PAREN,        {grouping, nullptr, PREC_NONE}},
+    {TOKEN_RIGHT_PAREN,       {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_LEFT_BRACKET,      {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_RIGHT_BRACKET,     {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_LEFT_BRACE,        {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_RIGHT_BRACE,       {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_COMMA,             {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_DOT,               {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_MINUS,             {unary,    binary,  PREC_TERM}},
+    {TOKEN_PLUS,              {nullptr,  binary,  PREC_TERM}},
+    {TOKEN_SEMICOLON,         {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_SLASH,             {nullptr,  binary,  PREC_FACTOR}},
+    {TOKEN_STAR,              {nullptr,  binary,  PREC_FACTOR}},
+    {TOKEN_CARET,             {nullptr,  binary,  PREC_POWER}},
+    {TOKEN_PERCENT,           {nullptr,  binary,  PREC_FACTOR}},
+    {TOKEN_QMARK,             {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_COLON,             {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_DOLSIGN,           {nullptr,  nullptr, PREC_NONE}},
     // One or two character tokens
-    {TOKEN_PLUS_PLUS,         {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_MINUS_MINUS,       {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_PLUS_PLUS,         {nullptr, postfixIncrement, PREC_CALL}},
+    {TOKEN_MINUS_MINUS,       {nullptr, postfixDecrement, PREC_CALL}},
     {TOKEN_PLUS_EQUAL,        {nullptr, nullptr, PREC_NONE}},
     {TOKEN_MINUS_EQUAL,       {nullptr, nullptr, PREC_NONE}},
     {TOKEN_STAR_EQUAL,        {nullptr, nullptr, PREC_NONE}},
@@ -238,38 +246,38 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_SHIFT_LEFT_EQUAL,  {nullptr, nullptr, PREC_NONE}},
     {TOKEN_SHIFT_RIGHT_EQUAL, {nullptr, nullptr, PREC_NONE}},
     // Literals
-    {TOKEN_IDENTIFIER, {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_STRING,     {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_NUMBER,     {number,  nullptr, PREC_NONE}},
-    {TOKEN_BINARY,     {number,  nullptr, PREC_NONE}},
-    {TOKEN_HEX,        {number,  nullptr, PREC_NONE}},
-    {TOKEN_OCTAL,      {number,  nullptr, PREC_NONE}},
+    {TOKEN_IDENTIFIER,        {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_STRING,            {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_NUMBER,            {number,  nullptr, PREC_NONE}},
+    {TOKEN_BINARY,            {number,  nullptr, PREC_NONE}},
+    {TOKEN_HEX,               {number,  nullptr, PREC_NONE}},
+    {TOKEN_OCTAL,             {number,  nullptr, PREC_NONE}},
     // Keywords
-    {TOKEN_AND,      {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_CLASS,    {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_ELSE,     {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_FALSE,    {literal, nullptr, PREC_NONE}},
-    {TOKEN_FOR,      {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_FUNC,     {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_IF,       {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_NULL,     {literal, nullptr, PREC_NONE}},
-    {TOKEN_OR,       {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_RETURN,   {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_SUPER,    {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_SELF,     {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_TRUE,     {literal, nullptr, PREC_NONE}},
-    {TOKEN_VAR,      {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_WHILE,    {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_IN,       {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_IS,       {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_BREAK,    {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_CONTINUE, {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_MATCH,    {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_CASE,     {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_IMPORT,   {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_AND,               {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_CLASS,             {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_ELSE,              {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_FALSE,             {literal, nullptr, PREC_NONE}},
+    {TOKEN_FOR,               {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_FUNC,              {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IF,                {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_NULL,              {literal, nullptr, PREC_NONE}},
+    {TOKEN_OR,                {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_RETURN,            {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_SUPER,             {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_SELF,              {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_TRUE,              {literal, nullptr, PREC_NONE}},
+    {TOKEN_VAR,               {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_WHILE,             {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IN,                {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IS,                {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_BREAK,             {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_CONTINUE,          {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_MATCH,             {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_CASE,              {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_IMPORT,            {nullptr, nullptr, PREC_NONE}},
     // Special
-    {TOKEN_ERROR, {nullptr, nullptr, PREC_NONE}},
-    {TOKEN_EOF,   {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_ERROR,             {nullptr, nullptr, PREC_NONE}},
+    {TOKEN_EOF,               {nullptr, nullptr, PREC_NONE}},
 };
 
 static void parsePrecedence(Precedence precedence) {

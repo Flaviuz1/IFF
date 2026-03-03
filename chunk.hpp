@@ -21,12 +21,15 @@ enum OpCode
     OP_DIVIDE,
     OP_MODULO,
     OP_POWER,
+    OP_INCREMENT,
+    OP_DECREMENT,
     // Bitwise
     OP_SHIFT_LEFT,
     OP_SHIFT_RIGHT,
     // Comparison
     OP_EQUAL,
-    OP_NOT_EQUAL,
+    OP_EQUAL_EQUAL,
+    OP_BANG_EQUAL,
     OP_GREATER,
     OP_GREATER_EQUAL,
     OP_LESS,
