@@ -185,13 +185,19 @@ static void binary() {
 }
 
 static void literal() {
-    switch (parser.previous.type) {
+    TokenType operatorType = parser.previous.type;
+
+    switch (operatorType) {
         case TOKEN_FALSE: emitByte(OP_FALSE); break;
-        case TOKEN_TRUE: emitByte(OP_TRUE); break;
-        case TOKEN_NULL: emitByte(OP_NULL); break;
+        case TOKEN_TRUE:  emitByte(OP_TRUE); break;
+        case TOKEN_NULL:  emitByte(OP_NULL); break;
         default:
             return;
     }
+}
+
+static void string() {
+
 }
 
 static void postfixIncrement() {

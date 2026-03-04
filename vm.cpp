@@ -81,8 +81,8 @@ static InterpretResult run() { // to be made faster after finishing
     } while(false)
     
     #define BINARY_OP(valueType, op) do{ \
-        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
-           runtimeError("Operands must be numbers."); \
+        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1)) ) { \
+           runtimeError("Operands must be numbers or strings."); \
            return INTERPRET_RUNTIME_ERROR; \
         } \
         double b = AS_NUMBER(pop()); \
@@ -110,6 +110,29 @@ static InterpretResult run() { // to be made faster after finishing
         } \
         double b = AS_NUMBER(pop()); \
         *(vm.stackTop - 1) = valueType(op(AS_NUMBER(*(vm.stackTop - 1)), b)); \
+    } while(false)
+
+    #define STRING_ADD() do { \
+        std::string b = VALUE_TO_STRING(pop()); \
+        *(vm.stackTop - 1) = STRING_VAL(new std::string(VALUE_TO_STRING(*(vm.stackTop - 1)) + b)); \
+    } while(false)
+
+    #define STRING_MULTIPLY() do { \
+        if (IS_NUMBER(peek(0))) { \
+            int n = std::max(0, (int)AS_NUMBER(pop())); \
+            std::string s = *AS_STRING(*(vm.stackTop - 1)); \
+            std::string result; \
+            result.reserve(s.size() * n); \
+            for (int i = 0; i < n; i++) result += s; \
+            *(vm.stackTop - 1) = STRING_VAL(new std::string(result)); \
+        } else { \
+            std::string s = *AS_STRING(pop()); \
+            int n = std::max(0, (int)AS_NUMBER(*(vm.stackTop - 1))); \
+            std::string result; \
+            result.reserve(s.size() * n); \
+            for (int i = 0; i < n; i++) result += s; \
+            *(vm.stackTop - 1) = STRING_VAL(new std::string(result)); \
+        } \
     } while(false)
 
     for(;;){
@@ -140,9 +163,19 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             //Binary operators
-            case OP_ADD:          {BINARY_OP(NUMBER_VAL, +);         break;}
+            case OP_ADD:          {
+                if (IS_STRING(peek(0)) || IS_STRING(peek(1))) { STRING_ADD(); }
+                else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) { BINARY_OP(NUMBER_VAL, +); }
+                else { runtimeError("Operands must be two numbers or at least one string."); return INTERPRET_RUNTIME_ERROR; }
+                break;
+            }
             case OP_SUBTRACT:     {BINARY_OP(NUMBER_VAL, -);         break;}
-            case OP_MULTIPLY:     {BINARY_OP(NUMBER_VAL, *);         break;}
+            case OP_MULTIPLY:     {
+                if (IS_STRING(peek(0)) && IS_NUMBER(peek(1))) { STRING_MULTIPLY(); }
+                else if (IS_NUMBER(peek(0)) && IS_STRING(peek(1))) { STRING_MULTIPLY(); }
+                else { BINARY_OP(NUMBER_VAL, *); }
+                break;
+            }
             case OP_DIVIDE:       {BINARY_OP(NUMBER_VAL, /);         break;}
             case OP_POWER:        {MOD_POWER(NUMBER_VAL, pow);       break;}
             case OP_MODULO:       {MOD_POWER(NUMBER_VAL, fmod);      break;}
