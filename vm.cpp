@@ -194,7 +194,6 @@ static InterpretResult run() { // to be made faster after finishing
     #undef READ_BYTE
     #undef READ_CONSTANT
     #undef BINARY_OP
-    #undef POWER_RAISE
     #undef NEGATE
     #undef BANG
     #undef CREMENT
