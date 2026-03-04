@@ -3,9 +3,11 @@
 #include <string>
 #include <cstdarg>
 #include "vm.hpp"
+#include "value.hpp"
 #include "debug.hpp"
 #include "common.hpp"
 #include "compiler.hpp"
+#include "object.hpp"
 
 VM vm;
 
@@ -40,6 +42,15 @@ Value pop(){
     return *vm.stackTop;
 }
 
+void freeObjects() {
+    Obj* obj = vm.objects;
+    while (obj != nullptr) {
+        Obj* next = obj->next;
+        delete obj;
+        obj = next;
+    }
+}
+
 static Value peek(int distance) {
     return vm.stackTop[-1 - distance];
 }
@@ -48,23 +59,35 @@ static bool isFalsey(Value value) {
     return IS_NULL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
-bool valuesEqual(Value a, Value b) {
-    if (a.type != b.type) return false;
-    switch (a.type) {
-        case VAL_BOOL: return AS_BOOL(a) == AS_BOOL(b);
-        case VAL_NULL: return true;
-        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
-        default:
-            return false;
+static std::string formatNumber(double n) {
+    if (n == (int)n) return std::to_string((int)n);
+    std::string s = std::to_string(n);
+    s.erase(s.find_last_not_of('0') + 1);
+    if (s.back() == '.') s.pop_back();
+    return s;
+}
+
+std::string valueToString(Value v) {
+    switch (v.type) {
+        case VAL_NUMBER: return formatNumber(AS_NUMBER(v));
+        case VAL_BOOL:   return AS_BOOL(v) ? "true" : "false";
+        case VAL_NULL:   return "null";
+        case VAL_OBJ:
+            switch (OBJ_TYPE(v)) {
+                case OBJ_STRING: return AS_STRING(v)->value;
+                default:         return "<obj>";
+            }
+        default: return "";
     }
 }
 
 void initVM(){
     resetStack();
+    vm.objects = nullptr;
 }
 
 void freeVM(){
-
+    freeObjects();
 }
 
 static InterpretResult run() { // to be made faster after finishing
@@ -113,25 +136,27 @@ static InterpretResult run() { // to be made faster after finishing
     } while(false)
 
     #define STRING_ADD() do { \
-        std::string b = VALUE_TO_STRING(pop()); \
-        *(vm.stackTop - 1) = STRING_VAL(new std::string(VALUE_TO_STRING(*(vm.stackTop - 1)) + b)); \
+        Value _b = pop(); \
+        std::string result = VALUE_TO_STRING(*(vm.stackTop - 1)) + VALUE_TO_STRING(_b); \
+        *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
     } while(false)
 
     #define STRING_MULTIPLY() do { \
         if (IS_NUMBER(peek(0))) { \
             int n = std::max(0, (int)AS_NUMBER(pop())); \
-            std::string s = *AS_STRING(*(vm.stackTop - 1)); \
-            std::string result; \
-            result.reserve(s.size() * n); \
-            for (int i = 0; i < n; i++) result += s; \
-            *(vm.stackTop - 1) = STRING_VAL(new std::string(result)); \
+            ObjString* result = new ObjString(); \
+            result->type = OBJ_STRING; \
+            result->value.reserve(AS_STRING(*(vm.stackTop-1))->value.size() * n); \
+            for (int i = 0; i < n; i++) result->value += AS_STRING(*(vm.stackTop-1))->value; \
+            *(vm.stackTop - 1) = STRING_VAL(result); \
         } else { \
-            std::string s = *AS_STRING(pop()); \
+            std::string s = AS_STRING(pop())->value; \
             int n = std::max(0, (int)AS_NUMBER(*(vm.stackTop - 1))); \
-            std::string result; \
-            result.reserve(s.size() * n); \
-            for (int i = 0; i < n; i++) result += s; \
-            *(vm.stackTop - 1) = STRING_VAL(new std::string(result)); \
+            ObjString* result = new ObjString(); \
+            result->type = OBJ_STRING; \
+            result->value.reserve(s.size() * n); \
+            for (int i = 0; i < n; i++) result->value += s; \
+            *(vm.stackTop - 1) = STRING_VAL(result); \
         } \
     } while(false)
 

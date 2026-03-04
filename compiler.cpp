@@ -2,6 +2,7 @@
 #include "compiler.hpp"
 #include "common.hpp"
 #include "chunk.hpp"
+#include "object.hpp"
 #ifdef DEBUG_PRINT_CODE
     #include "debug.hpp"
 #endif
@@ -197,7 +198,7 @@ static void literal() {
 }
 
 static void string() {
-
+    emitConstant(STRING_VAL(copyString(parser.previous.start, parser.previous.length - 1)));
 }
 
 static void postfixIncrement() {
@@ -254,7 +255,7 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_SHIFT_RIGHT_EQUAL, {nullptr,  binary,  PREC_ASSIGNMENT}},
     // Literals
     {TOKEN_IDENTIFIER,        {nullptr/*variable*/, nullptr, PREC_NONE}},
-    {TOKEN_STRING,            {nullptr/*string*/,   nullptr, PREC_NONE}},
+    {TOKEN_STRING,            {string,   nullptr, PREC_NONE}},
     {TOKEN_NUMBER,            {number,   nullptr, PREC_NONE}},
     {TOKEN_BINARY,            {number,   nullptr, PREC_NONE}},
     {TOKEN_HEX,               {number,   nullptr, PREC_NONE}},

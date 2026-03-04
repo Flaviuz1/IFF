@@ -28,6 +28,23 @@ void freeValueArray(ValueArray *array)
     initValueArray(array);
 }
 
+bool valuesEqual(Value a, Value b) {
+    if (a.type != b.type) return false;
+    switch (a.type) {
+        case VAL_BOOL:   return AS_BOOL(a) == AS_BOOL(b);
+        case VAL_NULL:   return true;
+        case VAL_NUMBER: return AS_NUMBER(a) == AS_NUMBER(b);
+        case VAL_OBJ:
+            if (OBJ_TYPE(a) != OBJ_TYPE(b)) return false;
+            switch (OBJ_TYPE(a)) {
+                case OBJ_STRING: return AS_STRING(a)->value == AS_STRING(b)->value;
+                default:         
+                    return AS_OBJ(a) == AS_OBJ(b);
+            }
+        default: return false;
+    }
+}
+
 void printValue(Value value)
 {
     switch (value.type) {
@@ -36,6 +53,12 @@ void printValue(Value value)
             break;
         case VAL_NULL: printf("null"); break;
         case VAL_NUMBER: printf("%g", AS_NUMBER(value)); break;
-        case VAL_STRING: printf("%s", AS_CSTRING(value)); break;
+        case VAL_OBJ: {
+            switch (OBJ_TYPE(value)) {
+                case OBJ_STRING: printf("%s", AS_CSTRING(value)); break;
+                default: printf("<unknown obj>"); break;
+            }
+            break;
+        }
     }
 }
