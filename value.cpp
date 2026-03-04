@@ -36,6 +36,6 @@ void printValue(Value value)
             break;
         case VAL_NULL: printf("null"); break;
         case VAL_NUMBER: printf("%g", AS_NUMBER(value)); break;
-        case VAL_STRING: printf("%s", AS_STRING(value)); break;
+        case VAL_STRING: printf("%s", AS_CSTRING(value)); break;
     }
 }
