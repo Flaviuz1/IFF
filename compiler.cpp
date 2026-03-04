@@ -25,6 +25,9 @@ enum Precedence {
     PREC_OR,          // or
     PREC_AND,         // and
     PREC_EQUALITY,    // == !=
+    PREC_BITWISE_OR,  // |
+    PREC_BITWISE_XOR, // #
+    PREC_BITWISE_AND, // &
     PREC_COMPARISON,  // < > <= >=
     PREC_SHIFT,       // << >>
     PREC_TERM,        // + -
@@ -142,7 +145,21 @@ static void grouping() {
 }
 
 static void number() {
-    double value = strtod(parser.previous.start, nullptr);
+    double value;
+    switch (parser.previous.type) {
+        case TOKEN_HEX:
+            value = (double)strtol(parser.previous.start + 2, nullptr, 16);
+            break;
+        case TOKEN_OCTAL:
+            value = (double)strtol(parser.previous.start + 2, nullptr, 8);
+            break;
+        case TOKEN_BINARY:
+            value = (double)strtol(parser.previous.start + 2, nullptr, 2);
+            break;
+        default:
+            value = strtod(parser.previous.start, nullptr);
+            break;
+    }
     emitConstant(NUMBER_VAL(value));
 }
 
@@ -154,6 +171,7 @@ static void unary() {
     switch(operatorType) {
         case TOKEN_MINUS:         emitByte(OP_NEGATE);       break;
         case TOKEN_BANG:          emitByte(OP_NOT);          break;
+        case TOKEN_TILDE:         emitByte(OP_BITWISE_NOT);  break;
         default:
             return;
     }
@@ -181,6 +199,9 @@ static void binary() {
         case TOKEN_GREATER_EQUAL: emitByte(OP_GREATER_EQUAL);break;
         case TOKEN_LESS:          emitByte(OP_LESS);         break;
         case TOKEN_LESS_EQUAL:    emitByte(OP_LESS_EQUAL);   break;
+        case TOKEN_AMPERSAND:     emitByte(OP_BITWISE_AND);  break;
+        case TOKEN_PIPE:          emitByte(OP_BITWISE_OR);   break;
+        case TOKEN_HASH:          emitByte(OP_BITWISE_XOR);  break;
         default: return;
     }
 }
@@ -198,7 +219,25 @@ static void literal() {
 }
 
 static void string() {
-    emitConstant(STRING_VAL(copyString(parser.previous.start, parser.previous.length - 1)));
+    int len = parser.previous.length;
+    if (parser.current.type != TOKEN_INTERP_START) len--;
+    emitConstant(STRING_VAL(copyString(parser.previous.start, len)));
+    
+    while (parser.current.type == TOKEN_INTERP_START) {
+        advance();
+        expression();
+        emitByte(OP_STRINGIFY);
+        emitByte(OP_ADD);
+        consume(TOKEN_INTERP_END, "Expect '}' after interpolation.");
+        
+        if (parser.current.type == TOKEN_STRING) {
+            advance();
+            int segLen = parser.previous.length;
+            if (parser.current.type != TOKEN_INTERP_START) segLen--;
+            emitConstant(STRING_VAL(copyString(parser.previous.start, segLen)));
+            emitByte(OP_ADD);
+        }
+    }
 }
 
 static void postfixIncrement() {
@@ -248,6 +287,10 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_LESS_EQUAL,        {nullptr,  binary,  PREC_COMPARISON}},
     {TOKEN_SHIFT_LEFT,        {nullptr,  binary,  PREC_SHIFT}},
     {TOKEN_SHIFT_RIGHT,       {nullptr,  binary,  PREC_SHIFT}},
+    {TOKEN_AMPERSAND,         {nullptr,  binary,  PREC_BITWISE_AND}},
+    {TOKEN_HASH,              {nullptr,  binary,  PREC_BITWISE_XOR}},
+    {TOKEN_PIPE,              {nullptr,  binary,  PREC_BITWISE_OR}},
+    {TOKEN_TILDE,             {unary,    nullptr, PREC_NONE}},
     {TOKEN_INTERP_START,      {nullptr,  nullptr, PREC_NONE}},
     {TOKEN_INTERP_END,        {nullptr,  nullptr, PREC_NONE}},
     // Three character tokens

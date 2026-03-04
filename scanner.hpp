@@ -20,6 +20,8 @@ enum TokenType {
     TOKEN_GREATER, TOKEN_GREATER_EQUAL,
     TOKEN_LESS, TOKEN_LESS_EQUAL,
     TOKEN_SHIFT_LEFT, TOKEN_SHIFT_RIGHT,
+    TOKEN_AMPERSAND, TOKEN_PIPE, TOKEN_TILDE, TOKEN_HASH,
+    TOKEN_AMPERSAND_EQUAL, TOKEN_PIPE_EQUAL, TOKEN_HASH_EQUAL,
     TOKEN_INTERP_START, TOKEN_INTERP_END,
     // Three character tokens.
     TOKEN_SHIFT_LEFT_EQUAL, TOKEN_SHIFT_RIGHT_EQUAL,
@@ -52,6 +54,7 @@ struct Scanner {
     // for string interpolation
     std::vector<Token> tokenQueue;
     int interpolationDepth;
+    std::vector<char> quoteStack;
 };
 
 void initScanner(const char* source);

@@ -111,15 +111,6 @@ static InterpretResult run() { // to be made faster after finishing
         double b = AS_NUMBER(pop()); \
         *(vm.stackTop - 1) = valueType(AS_NUMBER(*(vm.stackTop - 1)) op b); \
     } while(false)
-    
-    #define BIT_SHIFT_NORMAL(valueType, way) do{ \
-        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
-           runtimeError("Operands must be numbers."); \
-           return INTERPRET_RUNTIME_ERROR; \
-        } \
-        int b = (int)AS_NUMBER(pop()); \
-        *(vm.stackTop - 1) = valueType((double)((int)AS_NUMBER(*(vm.stackTop - 1)) way b)); \
-    } while(false)
 
     #define EQUAL_CHECK(valueType, negate) do{ \
         Value b = pop(); \
@@ -133,6 +124,15 @@ static InterpretResult run() { // to be made faster after finishing
         } \
         double b = AS_NUMBER(pop()); \
         *(vm.stackTop - 1) = valueType(op(AS_NUMBER(*(vm.stackTop - 1)), b)); \
+    } while(false)
+
+    #define BITWISE_OP(valueType, op) do{ \
+        if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
+            runtimeError("Operands must be numbers."); \
+            return INTERPRET_RUNTIME_ERROR; \
+        } \
+        int b = (int)AS_NUMBER(pop()); \
+        *(vm.stackTop - 1) = valueType((double)((int)AS_NUMBER(*(vm.stackTop - 1)) op b)); \
     } while(false)
 
     #define STRING_ADD() do { \
@@ -206,8 +206,19 @@ static InterpretResult run() { // to be made faster after finishing
             case OP_MODULO:       {MOD_POWER(NUMBER_VAL, fmod);      break;}
             case OP_INCREMENT:    {CREMENT(NUMBER_VAL, 1);           break;}
             case OP_DECREMENT:    {CREMENT(NUMBER_VAL, -1);          break;}
-            case OP_SHIFT_LEFT:   {BIT_SHIFT_NORMAL(NUMBER_VAL, <<); break;}
-            case OP_SHIFT_RIGHT:  {BIT_SHIFT_NORMAL(NUMBER_VAL, >>); break;}
+            case OP_SHIFT_LEFT:   {BITWISE_OP(NUMBER_VAL, <<);       break;}
+            case OP_SHIFT_RIGHT:  {BITWISE_OP(NUMBER_VAL, >>);       break;}
+            case OP_BITWISE_AND:  {BITWISE_OP(NUMBER_VAL, &);        break;}
+            case OP_BITWISE_OR:   {BITWISE_OP(NUMBER_VAL, |);        break;}
+            case OP_BITWISE_XOR:  {BITWISE_OP(NUMBER_VAL, ^);        break;}
+            case OP_BITWISE_NOT:  {
+                if(!IS_NUMBER(peek(0))) {
+                    runtimeError("Operand must be a number.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                *(vm.stackTop - 1) = NUMBER_VAL((double)(~(int)AS_NUMBER(*(vm.stackTop - 1))));
+                break;
+            }
             //Boolean stuff
             case OP_NEGATE:       {
                 if(!IS_NUMBER(peek(0))) {
@@ -240,6 +251,13 @@ static InterpretResult run() { // to be made faster after finishing
             //Equality
             case OP_EQUAL_EQUAL:  {EQUAL_CHECK(BOOL_VAL,  );         break;}
             case OP_BANG_EQUAL:   {EQUAL_CHECK(BOOL_VAL, !);         break;}
+            //Misc
+            case OP_STRINGIFY:    {
+                if (!IS_STRING(peek(0))) {
+                    *(vm.stackTop - 1) = STRING_VAL(allocateString(valueToString(*(vm.stackTop - 1))));
+                }
+                break;
+            }
             //Return
             case OP_RETURN:       {
                 printValue(pop());
@@ -255,9 +273,11 @@ static InterpretResult run() { // to be made faster after finishing
     #undef NEGATE
     #undef BANG
     #undef CREMENT
-    #undef BIT_SHIFT_NORMAL
     #undef EQUAL_CHECK
-    #undef MOD
+    #undef MOD_POWER
+    #undef STRING_ADD
+    #undef STRING_MULTIPLY
+    #undef BITWISE_OP
 }
 
 InterpretResult interpret(const char* source) {

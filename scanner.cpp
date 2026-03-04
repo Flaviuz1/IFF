@@ -13,6 +13,7 @@ void initScanner(const char* source){
     scanner.line = 1;
     scanner.tokenQueue.clear();
     scanner.interpolationDepth = 0;
+    scanner.quoteStack.clear();
 }
 
 static bool isAtEnd() {
@@ -114,6 +115,7 @@ static Token string(char starting_type) {
             scanner.tokenQueue.push_back(makeToken(TOKEN_STRING));
             advance(); advance();
             scanner.interpolationDepth++;
+            scanner.quoteStack.push_back(starting_type);
             scanner.tokenQueue.push_back(makeToken(TOKEN_INTERP_START));
             return dequeueToken();
         }
@@ -128,13 +130,37 @@ static Token string(char starting_type) {
 }
 
 static Token number() {
-    while(isdigit(peek())) advance();
-    
-    if(peek() == '.' && isdigit(peekNext())){
-        advance();
-        while(isdigit(peek())) advance();
+    bool notBaseTen = false;
+    if (scanner.current[-1] == '0') {
+        if (peek() == 'x' || peek() == 'X') {
+            notBaseTen = true;
+            advance();
+            while (isxdigit(peek())) advance();
+            return makeToken(TOKEN_HEX);
+        }
+        if (peek() == 'o' || peek() == 'O') {
+            notBaseTen = true;
+            advance();
+            while (peek() >= '0' && peek() <= '7') advance();
+            return makeToken(TOKEN_OCTAL);
+        }
+        if (peek() == 'b' || peek() == 'B') {
+            notBaseTen = true;
+            advance();
+            while (peek() == '0' || peek() == '1') advance();
+            return makeToken(TOKEN_BINARY);
+        }
     }
-
+    while (isdigit(peek())) advance();
+    if (peek() == '.') {
+        if(notBaseTen) {
+            return errorToken("Floating point in base other than 10.");
+        }
+        else if (isdigit(peekNext())){
+            advance();
+            while (isdigit(peek())) advance();
+        }
+    }
     return makeToken(TOKEN_NUMBER);
 }
 
@@ -222,7 +248,17 @@ Token scanToken(){
         case '(': return makeToken(TOKEN_LEFT_PAREN);
         case ')': return makeToken(TOKEN_RIGHT_PAREN);
         case '{': return makeToken(TOKEN_LEFT_BRACE);
-        case '}': if (scanner.interpolationDepth > 0) {scanner.interpolationDepth--; return makeToken(TOKEN_INTERP_END);} else return makeToken(TOKEN_RIGHT_BRACE);
+        case '}': {
+            if (scanner.interpolationDepth > 0) {
+                scanner.interpolationDepth--;
+                char quote = scanner.quoteStack.back();
+                scanner.quoteStack.pop_back();
+                Token continuation = string(quote);
+                scanner.tokenQueue.insert(scanner.tokenQueue.begin(), continuation); // front not back
+                return makeToken(TOKEN_INTERP_END);
+            }
+            return makeToken(TOKEN_RIGHT_BRACE);
+        }
         case '[': return makeToken(TOKEN_LEFT_BRACKET);
         case ']': return makeToken(TOKEN_RIGHT_BRACKET);
         case ',': return makeToken(TOKEN_COMMA);
@@ -240,9 +276,23 @@ Token scanToken(){
         case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
         case '<': return makeToken(match('=') ? TOKEN_LESS_EQUAL : match('<') ? TOKEN_SHIFT_LEFT : TOKEN_LESS);
         case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : match('>') ? TOKEN_SHIFT_RIGHT : TOKEN_GREATER);
-        case '"': return string('"');
-        case 39 : return string(39); // <- for ' because ASCII(') = 39
+        case '"': {
+            if (scanner.interpolationDepth > 0 && scanner.quoteStack.back() == '"') {
+                return errorToken("Cannot use the same quote type inside interpolation. Use ' instead.");
+            }
+            return string('"');
+        }
+        case 39 : {
+            if (scanner.interpolationDepth > 0 && scanner.quoteStack.back() == 39) {
+                return errorToken("Cannot use the same quote type inside interpolation. Use \" instead.");
+            }
+            return string(39);
+        }
         case '$': return makeToken(TOKEN_DOLSIGN);
+        case '&': return makeToken(match('=') ? TOKEN_AMPERSAND_EQUAL : TOKEN_AMPERSAND);
+        case '|': return makeToken(match('=') ? TOKEN_PIPE_EQUAL : TOKEN_PIPE);
+        case '~': return makeToken(TOKEN_TILDE);
+        case '#': return makeToken(match('=') ? TOKEN_HASH_EQUAL : TOKEN_HASH);
     }
 
 

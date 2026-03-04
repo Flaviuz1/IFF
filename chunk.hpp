@@ -26,6 +26,10 @@ enum OpCode
     // Bitwise
     OP_SHIFT_LEFT,
     OP_SHIFT_RIGHT,
+    OP_BITWISE_AND,
+    OP_BITWISE_OR,
+    OP_BITWISE_XOR,
+    OP_BITWISE_NOT,
     // Comparison
     OP_EQUAL,
     OP_EQUAL_EQUAL,
@@ -38,6 +42,8 @@ enum OpCode
     OP_NOT,
     OP_AND,
     OP_OR,
+    // Others
+    OP_STRINGIFY
 };
 
 struct Chunk

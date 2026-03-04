@@ -96,6 +96,20 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_LESS_EQUAL", offset);
     case OP_MODULO:
         return simpleInstruction("OP_MODULO", offset);
+    case OP_SHIFT_LEFT:
+        return simpleInstruction("OP_SHIFT_LEFT", offset);
+    case OP_SHIFT_RIGHT:
+        return simpleInstruction("OP_SHIFT_RIGHT", offset);
+    case OP_BITWISE_AND:
+        return simpleInstruction("OP_BITWISE_AND", offset);
+    case OP_BITWISE_OR:
+        return simpleInstruction("OP_BITWISE_OR", offset);
+    case OP_BITWISE_XOR:
+        return simpleInstruction("OP_BITWISE_XOR", offset);
+    case OP_BITWISE_NOT:
+        return simpleInstruction("OP_BITWISE_NOT", offset);
+    case OP_STRINGIFY:
+        return simpleInstruction("OP_STRINGIFY", offset);
     default:
         printf("Unknown opcode %d\n", instruction);
         return offset + 1;
