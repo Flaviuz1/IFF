@@ -31,7 +31,6 @@ enum OpCode
     OP_BITWISE_XOR,
     OP_BITWISE_NOT,
     // Comparison
-    OP_EQUAL,
     OP_EQUAL_EQUAL,
     OP_BANG_EQUAL,
     OP_GREATER,
@@ -42,6 +41,13 @@ enum OpCode
     OP_NOT,
     OP_AND,
     OP_OR,
+    // Variables and so
+    OP_DEFINE_GLOBAL,
+    OP_SET_GLOBAL,
+    OP_GET_GLOBAL,
+    // Statements
+    OP_PRINT_PLACEHOLDER,
+    OP_POP,
     // Others
     OP_STRINGIFY
 };

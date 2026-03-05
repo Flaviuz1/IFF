@@ -17,15 +17,6 @@ static int simpleInstruction(const char *name, int offset)
     return offset + 1;
 }
 
-static int constantInstructionSmall(const char *name, Chunk *chunk, int offset)
-{
-    uint8_t constant = chunk->code[offset + 1];
-    printf("%-16s %4d '", name, constant);
-    printValue(chunk->constants.values[constant]);
-    printf("'\n");
-    return offset + 2;
-}
-
 static int constantInstructionBig(const char *name, Chunk *chunk, int offset)
 {
     uint8_t constant_low  = chunk->code[offset + 3];
@@ -36,6 +27,18 @@ static int constantInstructionBig(const char *name, Chunk *chunk, int offset)
     printValue(chunk->constants.values[constant]);
     printf("'\n");
     return offset + 4;
+}
+
+static int constantInstruction(const char *name, Chunk *chunk, int offset)
+{
+    uint8_t idx = chunk->code[offset + 1];
+    if (chunk->code[offset] == OP_CONSTANT_BIG) {
+        return constantInstructionBig(name, chunk, offset);
+    }
+    printf("%-16s %4d '", name, idx);
+    printValue(chunk->constants.values[idx]);
+    printf("'\n");
+    return offset + 2;
 }
 
 int disassembleInstruction(Chunk *chunk, int offset)
@@ -55,9 +58,9 @@ int disassembleInstruction(Chunk *chunk, int offset)
     case OP_RETURN:
         return simpleInstruction("OP_RETURN", offset);
     case OP_CONSTANT:
-        return constantInstructionSmall("OP_CONSTANT", chunk, offset);
+        return constantInstruction("OP_CONSTANT", chunk, offset);
     case OP_CONSTANT_BIG:
-        return constantInstructionBig("OP_CONSTANT_BIG", chunk, offset);
+        return constantInstruction("OP_CONSTANT_BIG", chunk, offset);
     case OP_NEGATE:
         return simpleInstruction("OP_NEGATE", offset);
     case OP_ADD:
@@ -82,8 +85,6 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_INCREMENT", offset);
     case OP_DECREMENT:
         return simpleInstruction("OP_DECREMENT", offset);
-    case OP_EQUAL:         
-        return simpleInstruction("OP_EQUAL", offset);
     case OP_BANG_EQUAL:    
         return simpleInstruction("OP_NOT_EQUAL", offset);
     case OP_GREATER:       
@@ -110,6 +111,16 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_BITWISE_NOT", offset);
     case OP_STRINGIFY:
         return simpleInstruction("OP_STRINGIFY", offset);
+    case OP_DEFINE_GLOBAL: 
+        return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
+    case OP_GET_GLOBAL:
+        return constantInstruction("OP_GET_GLOBAL", chunk, offset);
+    case OP_SET_GLOBAL:
+        return constantInstruction("OP_SET_GLOBAL", chunk, offset);
+    case OP_PRINT_PLACEHOLDER:
+        return simpleInstruction("OP_PRINT_PLACEHOLDER", offset);
+    case OP_POP:
+        return simpleInstruction("OP_SEMICOLON / OP_POP", offset);
     default:
         printf("Unknown opcode %d\n", instruction);
         return offset + 1;

@@ -207,6 +207,7 @@ static TokenType identifierType() {
         case 'm': return checkKeyword(1, 4, "atch", TOKEN_MATCH);
         case 'n': return checkKeyword(1, 3, "ull", TOKEN_NULL);
         case 'o': return checkKeyword(1, 1, "r", TOKEN_OR);
+        case 'p': return checkKeyword(1, 16,"rint_placeholder", TOKEN_PRINT_PLACEHOLDER);
         case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
         case 's': 
             if (scanner.current - scanner.start > 1) {
@@ -274,8 +275,14 @@ Token scanToken(){
         case ':': return makeToken(TOKEN_COLON);
         case '!': return makeToken(match('=') ? TOKEN_BANG_EQUAL : TOKEN_BANG);
         case '=': return makeToken(match('=') ? TOKEN_EQUAL_EQUAL : TOKEN_EQUAL);
-        case '<': return makeToken(match('=') ? TOKEN_LESS_EQUAL : match('<') ? TOKEN_SHIFT_LEFT : TOKEN_LESS);
-        case '>': return makeToken(match('=') ? TOKEN_GREATER_EQUAL : match('>') ? TOKEN_SHIFT_RIGHT : TOKEN_GREATER);
+        case '<': {
+            if (match('<')) return makeToken(match('=') ? TOKEN_SHIFT_LEFT_EQUAL : TOKEN_SHIFT_LEFT);
+            return makeToken(match('=') ? TOKEN_LESS_EQUAL : TOKEN_LESS);
+        }
+        case '>': {
+            if (match('>')) return makeToken(match('=') ? TOKEN_SHIFT_RIGHT_EQUAL : TOKEN_SHIFT_RIGHT);
+            return makeToken(match('=') ? TOKEN_GREATER_EQUAL : TOKEN_GREATER);
+        }
         case '"': {
             if (scanner.interpolationDepth > 0 && scanner.quoteStack.back() == '"') {
                 return errorToken("Cannot use the same quote type inside interpolation. Use ' instead.");

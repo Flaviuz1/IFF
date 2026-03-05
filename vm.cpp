@@ -241,8 +241,6 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             case OP_NOT:          {BANG(BOOL_VAL);                   break;}
-            //Assignment
-            case OP_EQUAL:        {break;}
             //Comparison
             case OP_GREATER:      {BINARY_OP(BOOL_VAL, >);           break;}
             case OP_GREATER_EQUAL:{BINARY_OP(BOOL_VAL, >=);          break;}
@@ -251,6 +249,32 @@ static InterpretResult run() { // to be made faster after finishing
             //Equality
             case OP_EQUAL_EQUAL:  {EQUAL_CHECK(BOOL_VAL,  );         break;}
             case OP_BANG_EQUAL:   {EQUAL_CHECK(BOOL_VAL, !);         break;}
+            //Variables
+            case OP_DEFINE_GLOBAL:{
+                std::string name = AS_STRING(READ_CONSTANT())->value;
+                vm.globals[name] = pop();
+                break;
+            }
+            case OP_GET_GLOBAL:   {
+                std::string name = AS_STRING(READ_CONSTANT())->value;
+                auto it = vm.globals.find(name);
+                if (it == vm.globals.end()) {
+                    runtimeError("Undefined variable '%s'.", name.c_str());
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(it->second);
+                break;
+            }
+            case OP_SET_GLOBAL:   {
+                std::string name = AS_STRING(READ_CONSTANT())->value;
+                if (vm.globals.find(name) == vm.globals.end()) {
+                    runtimeError("Undefined variable '%s'.", name.c_str());
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                vm.globals[name] = peek(0);
+                break;
+            }
+            //Assignment
             //Misc
             case OP_STRINGIFY:    {
                 if (!IS_STRING(peek(0))) {
@@ -258,10 +282,15 @@ static InterpretResult run() { // to be made faster after finishing
                 }
                 break;
             }
-            //Return
-            case OP_RETURN:       {
+            case OP_PRINT_PLACEHOLDER: {
                 printValue(pop());
                 printf("\n");
+                break;
+            }
+            case OP_POP:          {pop(); break;}
+            //Return
+            case OP_RETURN:       {
+                //exit interpreter
                 return INTERPRET_OK;
             }
         }

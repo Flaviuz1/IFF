@@ -1,6 +1,7 @@
 #pragma once
 
 #include "chunk.hpp"
+#include <unordered_map>
 #define STACK_MAX 1024
 
 struct VM{
@@ -9,6 +10,7 @@ struct VM{
     Value stack[STACK_MAX];
     Value* stackTop;
     Obj* objects;
+    std::unordered_map<std::string, Value> globals;
 };
 
 enum InterpretResult{

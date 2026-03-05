@@ -47,6 +47,15 @@ struct ParseRule {
 };
 
 static void expression();
+static void statement();
+static void declaration();
+static void variable();
+static void unary();
+static void number();
+static void literal();
+static void string();
+static void grouping();
+static void binary();
 static ParseRule* getRule(TokenType type);
 static void parsePrecedence(Precedence precedence);
 
@@ -192,7 +201,6 @@ static void binary() {
         case TOKEN_CARET:         emitByte(OP_POWER);        break;
         case TOKEN_SHIFT_LEFT:    emitByte(OP_SHIFT_LEFT);   break;
         case TOKEN_SHIFT_RIGHT:   emitByte(OP_SHIFT_RIGHT);  break;
-        case TOKEN_EQUAL:         emitByte(OP_EQUAL);        break;
         case TOKEN_EQUAL_EQUAL:   emitByte(OP_EQUAL_EQUAL);  break;
         case TOKEN_BANG_EQUAL:    emitByte(OP_BANG_EQUAL);   break;
         case TOKEN_GREATER:       emitByte(OP_GREATER);      break;
@@ -240,12 +248,94 @@ static void string() {
     }
 }
 
-static void postfixIncrement() {
-    emitByte(OP_INCREMENT);
-}
+static void variable() {
+    uint8_t nameConstant = addConstant(currentChunk(), STRING_VAL(
+        copyString(parser.previous.start, parser.previous.length)
+    ));
 
-static void postfixDecrement() {
-    emitByte(OP_DECREMENT);
+    if        (parser.current.type == TOKEN_EQUAL) {
+        advance();
+        expression();
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_PLUS_PLUS) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        emitByte(OP_INCREMENT);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_MINUS_MINUS) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        emitByte(OP_DECREMENT);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_PLUS_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_ADD);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_MINUS_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_SUBTRACT);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_STAR_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_MULTIPLY);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_SLASH_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_DIVIDE);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_PERCENT_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_MODULO);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_CARET_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_POWER);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_AMPERSAND_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_BITWISE_AND);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_PIPE_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_BITWISE_OR);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_HASH_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_BITWISE_XOR);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_SHIFT_LEFT_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_SHIFT_LEFT);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else if (parser.current.type == TOKEN_SHIFT_RIGHT_EQUAL) {
+        advance();
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+        expression();
+        emitByte(OP_SHIFT_RIGHT);
+        emitBytes({OP_SET_GLOBAL, nameConstant});
+    } else {
+        emitBytes({OP_GET_GLOBAL, nameConstant});
+    }
 }
 
 static std::unordered_map<TokenType, ParseRule> rules = {
@@ -269,8 +359,8 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_COLON,             {nullptr,  nullptr, PREC_NONE}},
     {TOKEN_DOLSIGN,           {nullptr,  nullptr, PREC_NONE}},
     // One or two character tokens
-    {TOKEN_PLUS_PLUS,         {nullptr,  postfixIncrement, PREC_CALL}},
-    {TOKEN_MINUS_MINUS,       {nullptr,  postfixDecrement, PREC_CALL}},
+    {TOKEN_PLUS_PLUS,         {nullptr,  nullptr, PREC_CALL}},
+    {TOKEN_MINUS_MINUS,       {nullptr,  nullptr, PREC_CALL}},
     {TOKEN_PLUS_EQUAL,        {nullptr,  binary,  PREC_ASSIGNMENT}},
     {TOKEN_MINUS_EQUAL,       {nullptr,  binary,  PREC_ASSIGNMENT}},
     {TOKEN_STAR_EQUAL,        {nullptr,  binary,  PREC_ASSIGNMENT}},
@@ -297,7 +387,7 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_SHIFT_LEFT_EQUAL,  {nullptr,  binary,  PREC_ASSIGNMENT}},
     {TOKEN_SHIFT_RIGHT_EQUAL, {nullptr,  binary,  PREC_ASSIGNMENT}},
     // Literals
-    {TOKEN_IDENTIFIER,        {nullptr/*variable*/, nullptr, PREC_NONE}},
+    {TOKEN_IDENTIFIER,        {variable, nullptr, PREC_NONE}},
     {TOKEN_STRING,            {string,   nullptr, PREC_NONE}},
     {TOKEN_NUMBER,            {number,   nullptr, PREC_NONE}},
     {TOKEN_BINARY,            {number,   nullptr, PREC_NONE}},
@@ -318,6 +408,7 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_SELF,              {nullptr/*self*/,     nullptr, PREC_NONE}},
     {TOKEN_TRUE,              {literal,  nullptr, PREC_NONE}},
     {TOKEN_VAR,               {nullptr,  nullptr, PREC_NONE}},
+    {TOKEN_PRINT_PLACEHOLDER, {nullptr,  nullptr, PREC_NONE}},
     {TOKEN_WHILE,             {nullptr,  nullptr, PREC_NONE}},
     {TOKEN_IN,                {nullptr,  nullptr, PREC_NONE}},
     {TOKEN_IS,                {nullptr,  binary,  PREC_COMPARISON}},
@@ -354,14 +445,73 @@ static void expression() {
     parsePrecedence(PREC_ASSIGNMENT);
 }
 
+// STATEMENTS AND DECLARATIONS
+
+static void varDeclaration() {
+    consume(TOKEN_IDENTIFIER, "Expect variable name.");
+    uint8_t nameConstant = addConstant(currentChunk(), STRING_VAL(
+        copyString(parser.previous.start, parser.previous.length)
+    ));
+    
+    // compile initializer or default to null
+    if (parser.current.type == TOKEN_EQUAL) {
+        advance();
+        expression();
+    } else {
+        emitByte(OP_NULL);
+    }
+    
+    consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration or value.");
+    emitBytes({OP_DEFINE_GLOBAL, nameConstant});
+}
+
+static void printStatementPlaceholder() {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration or value.");
+    emitByte(OP_PRINT_PLACEHOLDER);
+}
+
+static bool check(TokenType type) {
+    return (parser.current.type == type);
+}
+
+static bool match(TokenType type) {
+    if(!check(type)) return false;
+    advance();
+    return true;
+}
+
+static void expressionStatement() {
+    expression();
+    consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
+    emitByte(OP_POP);
+}
+
+static void statement() {
+    if (match(TOKEN_PRINT_PLACEHOLDER)) {
+        printStatementPlaceholder();
+    } else {
+        expressionStatement();
+    }
+}
+
+static void declaration() {
+    if (match(TOKEN_VAR)) {
+        varDeclaration();
+    } else {
+        statement();
+    }
+}
+
 bool compile(const char* source, Chunk* chunk){
     initScanner(source);
     compilingChunk = chunk;
     parser.hadError = false;
     parser.panicMode = false;
     advance();
-    expression();
-    consume(TOKEN_EOF, "Expect end of expression.");
+    while(!match(TOKEN_EOF)) {
+        declaration();
+    }
     endCompiler();
     return !parser.hadError;
 }
