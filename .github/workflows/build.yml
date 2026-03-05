@@ -2,6 +2,8 @@ name: Build IFF
 
 on:
   push:
+    branches:
+      - main
     tags:
       - 'v*'
 
