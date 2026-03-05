@@ -61,6 +61,7 @@ static void parsePrecedence(Precedence precedence);
 
 Parser parser;
 Chunk* compilingChunk;
+Precedence currentPrecedence = PREC_NONE;
 
 static Chunk* currentChunk(){
     return compilingChunk;
@@ -252,8 +253,8 @@ static void variable() {
     uint8_t nameConstant = addConstant(currentChunk(), STRING_VAL(
         copyString(parser.previous.start, parser.previous.length)
     ));
-
-    if        (parser.current.type == TOKEN_EQUAL) {
+    bool canAssign = (currentPrecedence <= PREC_ASSIGNMENT);
+    if (canAssign && parser.current.type == TOKEN_EQUAL) {
         advance();
         expression();
         emitBytes({OP_SET_GLOBAL, nameConstant});
@@ -423,6 +424,7 @@ static std::unordered_map<TokenType, ParseRule> rules = {
 };
 
 static void parsePrecedence(Precedence precedence) {
+    currentPrecedence = precedence;
     advance();
     ParseFn prefixRule = getRule(parser.previous.type)->prefix;
     if (prefixRule == nullptr) {
