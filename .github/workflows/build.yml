@@ -3,7 +3,7 @@ name: Build IFF
 on:
   push:
     tags:
-      - 'v*'   # triggers when you push a tag like v1.0.0
+      - 'v*'
 
 jobs:
   build:
@@ -14,13 +14,27 @@ jobs:
     runs-on: ${{ matrix.os }}
     
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
       
-      - name: Build
+      - name: Build (Linux/Mac)
+        if: runner.os != 'Windows'
         run: g++ *.cpp -o iff
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: g++ (Get-ChildItem -Filter *.cpp | Select-Object -ExpandProperty Name) -o iff.exe
+        shell: pwsh
         
-      - name: Upload binary
-        uses: actions/upload-artifact@v3
+      - name: Upload binary (Linux/Mac)
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
         with:
           name: iff-${{ matrix.os }}
           path: iff
+
+      - name: Upload binary (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: iff-windows
+          path: iff.exe
