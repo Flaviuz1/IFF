@@ -24,13 +24,17 @@ jobs:
         if: runner.os == 'Windows'
         run: g++ (Get-ChildItem -Filter *.cpp | Select-Object -ExpandProperty Name) -o iff.exe
         shell: pwsh
-        
+
+      - name: Rename binary for platform
+        if: runner.os != 'Windows'
+        run: mv iff iff-${{ runner.os }}
+
       - name: Upload binary (Linux/Mac)
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: iff-${{ matrix.os }}
-          path: iff
+          path: iff-${{ runner.os }}
 
       - name: Upload binary (Windows)
         if: runner.os == 'Windows'
@@ -38,3 +42,22 @@ jobs:
         with:
           name: iff-windows
           path: iff.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/**/*
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
