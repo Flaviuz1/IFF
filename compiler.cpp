@@ -471,6 +471,27 @@ static void printStatementPlaceholder() {
     emitByte(OP_PRINT_PLACEHOLDER);
 }
 
+static void synchronize() {
+    parser.panicMode = false;
+    while (parser.current.type != TOKEN_EOF) {
+        if (parser.previous.type == TOKEN_SEMICOLON) return;
+                switch (parser.current.type) {
+                case TOKEN_CLASS:
+                case TOKEN_FUNC:
+                case TOKEN_VAR:
+                case TOKEN_FOR:
+                case TOKEN_IF:
+                case TOKEN_WHILE:
+                case TOKEN_PRINT_PLACEHOLDER:
+                case TOKEN_RETURN:
+                default:                 
+                return;
+                // Do nothing.
+            }
+        advance();
+    }
+}
+
 static bool check(TokenType type) {
     return (parser.current.type == type);
 }
@@ -501,6 +522,8 @@ static void declaration() {
     } else {
         statement();
     }
+    if (parser.panicMode) synchronize();
+    
 }
 
 bool compile(const char* source, Chunk* chunk){
