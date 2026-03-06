@@ -83,6 +83,10 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_FALSE", offset);
     case OP_NOT:
         return simpleInstruction("OP_NOT", offset);
+    case OP_AND:
+        return simpleInstruction("OP_AND", offset);
+    case OP_OR:
+        return simpleInstruction("OP_OR", offset);
     case OP_INCREMENT:
         return simpleInstruction("OP_INCREMENT", offset);
     case OP_DECREMENT:

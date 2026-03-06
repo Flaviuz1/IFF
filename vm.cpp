@@ -184,11 +184,7 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             case OP_CONSTANT_BIG: {
-                uint32_t idx  = (uint32_t)READ_BYTE() << 16;
-                         idx |= (uint32_t)READ_BYTE() << 8;
-                         idx |= (uint32_t)READ_BYTE();
-                Value constant = vm.chunk->constants.values[idx];
-                push(constant);
+                push(READ_CONSTANT_BIG());
                 break;
             }
             //Binary operators
@@ -246,6 +242,7 @@ static InterpretResult run() { // to be made faster after finishing
             }
             case OP_NOT:          {BANG(BOOL_VAL);                   break;}
             case OP_OR:           {break;}
+            case OP_AND:           {break;}
             //Comparison
             case OP_GREATER:      {BINARY_OP(BOOL_VAL, >);           break;}
             case OP_GREATER_EQUAL:{BINARY_OP(BOOL_VAL, >=);          break;}
