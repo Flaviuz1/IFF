@@ -27,6 +27,14 @@ jobs:
         run: g++ (Get-ChildItem -Filter *.cpp | Select-Object -ExpandProperty Name) -o iff.exe
         shell: pwsh
 
+      - name: Copy MinGW DLLs (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          $mingwBin = (Split-Path (where.exe g++))
+          Copy-Item "$mingwBin\libgcc_s_seh-1.dll" .
+          Copy-Item "$mingwBin\libstdc++-6.dll" .
+        shell: pwsh
+
       - name: Rename binary for platform
         if: runner.os != 'Windows'
         run: mv iff iff-${{ runner.os }}
@@ -43,10 +51,14 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: iff-windows
-          path: iff.exe
+          path: |
+            iff.exe
+            libgcc_s_seh-1.dll
+            libstdc++-6.dll
 
   release:
     needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -45,6 +45,9 @@ enum OpCode
     OP_DEFINE_GLOBAL,
     OP_SET_GLOBAL,
     OP_GET_GLOBAL,
+    OP_DEFINE_GLOBAL_BIG,
+    OP_SET_GLOBAL_BIG,
+    OP_GET_GLOBAL_BIG,
     // Statements
     OP_PRINT_PLACEHOLDER,
     OP_POP,

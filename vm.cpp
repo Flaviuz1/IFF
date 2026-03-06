@@ -144,19 +144,17 @@ static InterpretResult run() { // to be made faster after finishing
     #define STRING_MULTIPLY() do { \
         if (IS_NUMBER(peek(0))) { \
             int n = std::max(0, (int)AS_NUMBER(pop())); \
-            ObjString* result = new ObjString(); \
-            result->type = OBJ_STRING; \
-            result->value.reserve(AS_STRING(*(vm.stackTop-1))->value.size() * n); \
-            for (int i = 0; i < n; i++) result->value += AS_STRING(*(vm.stackTop-1))->value; \
-            *(vm.stackTop - 1) = STRING_VAL(result); \
+            std::string result; \
+            result.reserve(AS_STRING(*(vm.stackTop-1))->value.size() * n); \
+            for (int i = 0; i < n; i++) result += AS_STRING(*(vm.stackTop-1))->value; \
+            *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
         } else { \
             std::string s = AS_STRING(pop())->value; \
             int n = std::max(0, (int)AS_NUMBER(*(vm.stackTop - 1))); \
-            ObjString* result = new ObjString(); \
-            result->type = OBJ_STRING; \
-            result->value.reserve(s.size() * n); \
-            for (int i = 0; i < n; i++) result->value += s; \
-            *(vm.stackTop - 1) = STRING_VAL(result); \
+            std::string result; \
+            result.reserve(s.size() * n); \
+            for (int i = 0; i < n; i++) result += s; \
+            *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
         } \
     } while(false)
 
@@ -241,7 +239,7 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             case OP_NOT:          {BANG(BOOL_VAL);                   break;}
-            case OP_OR: {}
+            case OP_OR:           {break;}
             //Comparison
             case OP_GREATER:      {BINARY_OP(BOOL_VAL, >);           break;}
             case OP_GREATER_EQUAL:{BINARY_OP(BOOL_VAL, >=);          break;}
