@@ -1,4 +1,5 @@
 #include <cstdio>
+#include <cstring>
 #include "debug.hpp"
 #include "value.hpp"
 
@@ -31,10 +32,11 @@ static int constantInstructionBig(const char *name, Chunk *chunk, int offset)
 
 static int constantInstruction(const char *name, Chunk *chunk, int offset)
 {
-    uint8_t idx = chunk->code[offset + 1];
-    if (chunk->code[offset] == OP_CONSTANT_BIG) {
+    size_t len = strlen(name);
+    if (len >= 3 && memcmp(name + len - 3, "BIG", 3) == 0) {
         return constantInstructionBig(name, chunk, offset);
     }
+    uint8_t idx = chunk->code[offset + 1];
     printf("%-16s %4d '", name, idx);
     printValue(chunk->constants.values[idx]);
     printf("'\n");
@@ -119,6 +121,12 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return constantInstruction("OP_GET_GLOBAL", chunk, offset);
     case OP_SET_GLOBAL:
         return constantInstruction("OP_SET_GLOBAL", chunk, offset);
+    case OP_DEFINE_GLOBAL_BIG: 
+        return constantInstruction("OP_DEFINE_GLOBAL_BIG", chunk, offset);
+    case OP_GET_GLOBAL_BIG:
+        return constantInstruction("OP_GET_GLOBAL_BIG", chunk, offset);
+    case OP_SET_GLOBAL_BIG:
+        return constantInstruction("OP_SET_GLOBAL_BIG", chunk, offset);
     case OP_PRINT_PLACEHOLDER:
         return simpleInstruction("OP_PRINT_PLACEHOLDER", offset);
     case OP_POP:

@@ -93,6 +93,12 @@ void freeVM(){
 static InterpretResult run() { // to be made faster after finishing
     #define READ_BYTE() (*vm.ip++)
     #define READ_CONSTANT() (vm.chunk->constants.values[READ_BYTE()])
+    #define READ_CONSTANT_BIG() \
+        (vm.chunk->constants.values[ \
+            ((uint32_t)READ_BYTE() << 16) | \
+            ((uint32_t)READ_BYTE() << 8)  | \
+            ((uint32_t)READ_BYTE())          \
+        ])
     #define NEGATE(valueType) (*(vm.stackTop - 1) = valueType(-AS_NUMBER(*(vm.stackTop - 1))))
     #define BANG(valueType) (*(vm.stackTop - 1) = valueType(isFalsey(*(vm.stackTop - 1))))
     #define CREMENT(valueType, delta) do{ \
@@ -266,6 +272,30 @@ static InterpretResult run() { // to be made faster after finishing
             }
             case OP_SET_GLOBAL:   {
                 std::string name = AS_STRING(READ_CONSTANT())->value;
+                if (vm.globals.find(name) == vm.globals.end()) {
+                    runtimeError("Undefined variable '%s'.", name.c_str());
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                vm.globals[name] = peek(0);
+                break;
+            }
+            case OP_DEFINE_GLOBAL_BIG:{
+                std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
+                vm.globals[name] = pop();
+                break;
+            }
+            case OP_GET_GLOBAL_BIG: {
+                std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
+                auto it = vm.globals.find(name);
+                if (it == vm.globals.end()) {
+                    runtimeError("Undefined variable '%s'.", name.c_str());
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                push(it->second);
+                break;
+            }
+            case OP_SET_GLOBAL_BIG: {
+                std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
                 if (vm.globals.find(name) == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
                     return INTERPRET_RUNTIME_ERROR;

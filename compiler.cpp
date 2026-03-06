@@ -460,19 +460,17 @@ static void expression() {
 
 static void varDeclaration() {
     consume(TOKEN_IDENTIFIER, "Expect variable name.");
-    uint8_t nameConstant = addConstant(currentChunk(), STRING_VAL(
+    int nameConstant = addConstant(currentChunk(), STRING_VAL(
         copyString(parser.previous.start, parser.previous.length)
     ));
-
     if (parser.current.type == TOKEN_EQUAL) {
         advance();
         expression();
     } else {
         emitByte(OP_NULL);
     }
-
     consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration or value.");
-    emitBytes({OP_DEFINE_GLOBAL, nameConstant});
+    emitGlobalOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, nameConstant);
 }
 
 static void printStatementPlaceholder() {
