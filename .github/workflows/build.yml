@@ -30,7 +30,7 @@ jobs:
       - name: Copy MinGW DLLs (Windows)
         if: runner.os == 'Windows'
         run: |
-          $mingwBin = (Split-Path (where.exe g++))
+          $mingwBin = Split-Path (where.exe g++ | Select-Object -First 1)
           Copy-Item "$mingwBin\libgcc_s_seh-1.dll" .
           Copy-Item "$mingwBin\libstdc++-6.dll" .
         shell: pwsh
