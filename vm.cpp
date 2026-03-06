@@ -241,6 +241,7 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             case OP_NOT:          {BANG(BOOL_VAL);                   break;}
+            case OP_OR: {}
             //Comparison
             case OP_GREATER:      {BINARY_OP(BOOL_VAL, >);           break;}
             case OP_GREATER_EQUAL:{BINARY_OP(BOOL_VAL, >=);          break;}
