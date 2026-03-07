@@ -281,6 +281,7 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_SELF,              {nullptr/*self*/,   nullptr,   PREC_NONE}},
     {TOKEN_TRUE,              {literal,  nullptr,            PREC_NONE}},
     {TOKEN_VAR,               {nullptr,  nullptr,            PREC_NONE}},
+    {TOKEN_CON,               {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_PRINT_PLACEHOLDER, {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_WHILE,             {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_IN,                {nullptr,  nullptr,            PREC_NONE}},
@@ -502,7 +503,7 @@ static void synchronize() {
     while (parser.current.type != TOKEN_EOF) {
         if (parser.previous.type == TOKEN_SEMICOLON) return;
         switch (parser.current.type) {
-            case TOKEN_CLASS: case TOKEN_FUNC:  case TOKEN_VAR:
+            case TOKEN_CLASS: case TOKEN_FUNC:  case TOKEN_VAR:     case TOKEN_CON:
             case TOKEN_FOR:   case TOKEN_IF:    case TOKEN_WHILE:
             case TOKEN_PRINT_PLACEHOLDER:       case TOKEN_RETURN:
                 return;
