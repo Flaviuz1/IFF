@@ -254,7 +254,8 @@ static InterpretResult run() { // to be made faster after finishing
             //Variables
             case OP_DEFINE_GLOBAL:{
                 std::string name = AS_STRING(READ_CONSTANT())->value;
-                vm.globals[name] = pop();
+                bool isConst = (READ_BYTE() == OP_CONST);
+                vm.globals[name] = {pop(), isConst};
                 break;
             }
             case OP_GET_GLOBAL:   {
@@ -264,21 +265,27 @@ static InterpretResult run() { // to be made faster after finishing
                     runtimeError("Undefined variable '%s'.", name.c_str());
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(it->second);
+                push(it->second.value);
                 break;
             }
             case OP_SET_GLOBAL:   {
                 std::string name = AS_STRING(READ_CONSTANT())->value;
-                if (vm.globals.find(name) == vm.globals.end()) {
+                auto it = vm.globals.find(name);
+                if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                vm.globals[name] = peek(0);
+                if (it->second.isConst) {
+                    runtimeError("Cannot reassign value to a constant.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                it->second.value = peek(0);
                 break;
             }
             case OP_DEFINE_GLOBAL_BIG:{
                 std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
-                vm.globals[name] = pop();
+                bool isConst = (READ_BYTE() == OP_CONST);
+                vm.globals[name] = {pop(), isConst};
                 break;
             }
             case OP_GET_GLOBAL_BIG: {
@@ -288,16 +295,21 @@ static InterpretResult run() { // to be made faster after finishing
                     runtimeError("Undefined variable '%s'.", name.c_str());
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                push(it->second);
+                push(it->second.value);
                 break;
             }
             case OP_SET_GLOBAL_BIG: {
                 std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
-                if (vm.globals.find(name) == vm.globals.end()) {
+                auto it = vm.globals.find(name);
+                if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
                     return INTERPRET_RUNTIME_ERROR;
                 }
-                vm.globals[name] = peek(0);
+                if (it->second.isConst) {
+                    runtimeError("Cannot reassign value to a constant.");
+                    return INTERPRET_RUNTIME_ERROR;
+                }
+                it->second.value = peek(0);
                 break;
             }
             case OP_GET_LOCAL: {
@@ -342,6 +354,9 @@ static InterpretResult run() { // to be made faster after finishing
                 //exit interpreter
                 return INTERPRET_OK;
             }
+            default:
+                runtimeError("Unknown opcode %d.", instruction);
+                return INTERPRET_RUNTIME_ERROR;
         }
     }
 

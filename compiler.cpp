@@ -23,6 +23,7 @@ struct Parser {
 struct Local {
     Token name;
     int   depth;
+    bool  isConst;
 };
 
 struct Compiler {
@@ -187,7 +188,7 @@ static void endScope() {
     }
 }
 
-static void declareLocal(Token name) {
+static void declareLocal(Token name, bool con) {
     for (int i = (int)current->locals.size() - 1; i >= 0; i--) {
         Local& local = current->locals[i];
         if (local.depth < current->scopeDepth) break;
@@ -196,18 +197,18 @@ static void declareLocal(Token name) {
             errorAtPrevious("Variable with this name already declared in this scope.");
         }
     }
-    current->locals.push_back({name, current->scopeDepth});
+    current->locals.push_back({name, current->scopeDepth, con});
 }
 
-static int resolveLocal(Token* name) {
+static std::pair<int, bool> resolveLocal(Token* name) {
     for (int i = (int)current->locals.size() - 1; i >= 0; i--) {
         Local& local = current->locals[i];
         if (local.name.length == name->length &&
             memcmp(local.name.start, name->start, name->length) == 0) {
-            return i;
+            return {i, local.isConst};
         }
     }
-    return -1;
+    return {-1, false};
 }
 
 static std::unordered_map<TokenType, ParseRule> rules = {
@@ -384,24 +385,26 @@ static void string(bool canAssign) {
 static void variable(bool canAssign) {
     Token name = parser.previous;
 
-    int localIdx = resolveLocal(&name);
-    bool isLocal = (localIdx != -1);
+    std::pair<int, bool> localIdx_conState = resolveLocal(&name);
+    bool isLocal = (localIdx_conState.first != -1);
 
     auto emitGet = [&]() {
-        if (isLocal) emitGlobalOp(OP_GET_LOCAL, OP_GET_LOCAL_BIG, localIdx);
+        if (isLocal) emitGlobalOp(OP_GET_LOCAL, OP_GET_LOCAL_BIG, localIdx_conState.first);
         else {
             int nc = addConstant(currentChunk(), STRING_VAL(copyString(name.start, name.length)));
             emitGlobalOp(OP_GET_GLOBAL, OP_GET_GLOBAL_BIG, nc);
         }
     };
     auto emitSet = [&]() {
-        if (isLocal) emitGlobalOp(OP_SET_LOCAL, OP_SET_LOCAL_BIG, localIdx);
+        if (localIdx_conState.second) {error("Cannot assign a value to a constant."); return;}
+        if (isLocal) emitGlobalOp(OP_SET_LOCAL, OP_SET_LOCAL_BIG, localIdx_conState.first);
         else {
             int nc = addConstant(currentChunk(), STRING_VAL(copyString(name.start, name.length)));
             emitGlobalOp(OP_SET_GLOBAL, OP_SET_GLOBAL_BIG, nc);
         }
     };
 
+    canAssign = canAssign && !localIdx_conState.second;
     if (!canAssign) { emitGet(); return; }
 
     //compound assignment table: token -> opcode
@@ -462,7 +465,7 @@ static void block() {
     consume(TOKEN_RIGHT_BRACE, "Expect '}' after block.");
 }
 
-static void varDeclaration() {
+static void varDeclaration(bool isConst) {
     consume(TOKEN_IDENTIFIER, "Expect variable name.");
     Token name = parser.previous;
 
@@ -472,13 +475,14 @@ static void varDeclaration() {
     consume(TOKEN_SEMICOLON, "Expect ';' after variable declaration.");
 
     if (current->scopeDepth > 0) {
-        declareLocal(name);
+        declareLocal(name, isConst);
         return;
     }
 
     int nameConstant = addConstant(currentChunk(),
         STRING_VAL(copyString(name.start, name.length)));
     emitGlobalOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, nameConstant);
+    emitByte(isConst ? OP_CONST : OP_NOT_CONST);
 }
 
 static void printStatementPlaceholder() {
@@ -515,7 +519,8 @@ static void statement() {
 }
 
 static void declaration() {
-    if (match(TOKEN_VAR)) varDeclaration();
+    if (match(TOKEN_VAR)) varDeclaration(false);
+    else if (match(TOKEN_CON)) varDeclaration(true);
     else                  statement();
     if (parser.panicMode) synchronize();
 }

@@ -27,7 +27,7 @@ static int constantInstructionBig(const char *name, Chunk *chunk, int offset)
     printf("%-16s %4d '", name, constant);
     printValue(chunk->constants.values[constant]);
     printf("'\n");
-    return offset + 4;
+    return offset + 5;
 }
 
 static int constantInstruction(const char *name, Chunk *chunk, int offset)
@@ -40,7 +40,7 @@ static int constantInstruction(const char *name, Chunk *chunk, int offset)
     printf("%-16s %4d '", name, idx);
     printValue(chunk->constants.values[idx]);
     printf("'\n");
-    return offset + 2;
+    return offset + 3;
 }
 
 static int localInstruction(const char* name, Chunk* chunk, int offset) {

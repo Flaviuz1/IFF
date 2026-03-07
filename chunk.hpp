@@ -52,6 +52,7 @@ enum OpCode
     OP_GET_LOCAL_BIG,
     OP_SET_LOCAL,
     OP_SET_LOCAL_BIG,
+    OP_CONST, OP_NOT_CONST,
     // Statements
     OP_PRINT_PLACEHOLDER,
     OP_POP,
