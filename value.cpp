@@ -37,7 +37,7 @@ bool valuesEqual(Value a, Value b) {
         case VAL_OBJ:
             if (OBJ_TYPE(a) != OBJ_TYPE(b)) return false;
             switch (OBJ_TYPE(a)) {
-                case OBJ_STRING: return AS_STRING(a)->value == AS_STRING(b)->value;
+                case OBJ_STRING: return AS_STRING(a)->stringValue == AS_STRING(b)->stringValue;
                 default:         
                     return AS_OBJ(a) == AS_OBJ(b);
             }

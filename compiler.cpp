@@ -348,6 +348,7 @@ static void binary(bool canAssign) {
         case TOKEN_AMPERSAND:     emitByte(OP_BITWISE_AND);  break;
         case TOKEN_PIPE:          emitByte(OP_BITWISE_OR);   break;
         case TOKEN_HASH:          emitByte(OP_BITWISE_XOR);  break;
+        case TOKEN_IS:            emitByte(OP_IS);           break;
         default: return;
     }
 }

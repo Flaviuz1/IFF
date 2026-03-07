@@ -37,6 +37,7 @@ enum OpCode
     OP_GREATER_EQUAL,
     OP_LESS,
     OP_LESS_EQUAL,
+    OP_IS,
     // Logical
     OP_NOT,
     OP_AND,

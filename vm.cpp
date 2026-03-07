@@ -59,28 +59,6 @@ static bool isFalsey(Value value) {
     return IS_NULL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
-static std::string formatNumber(double n) {
-    if (n == (int)n) return std::to_string((int)n);
-    std::string s = std::to_string(n);
-    s.erase(s.find_last_not_of('0') + 1);
-    if (s.back() == '.') s.pop_back();
-    return s;
-}
-
-std::string valueToString(Value v) {
-    switch (v.type) {
-        case VAL_NUMBER: return formatNumber(AS_NUMBER(v));
-        case VAL_BOOL:   return AS_BOOL(v) ? "true" : "false";
-        case VAL_NULL:   return "null";
-        case VAL_OBJ:
-            switch (OBJ_TYPE(v)) {
-                case OBJ_STRING: return AS_STRING(v)->value;
-                default:         return "<obj>";
-            }
-        default: return "";
-    }
-}
-
 void initVM(){
     resetStack();
     vm.objects = nullptr;
@@ -88,6 +66,33 @@ void initVM(){
 
 void freeVM(){
     freeObjects();
+}
+
+static inline std::string formatNumber(double n) {
+    if (n == (int)n) return std::to_string((int)n);
+    std::string s = std::to_string(n);
+    s.erase(s.find_last_not_of('0') + 1);
+    if (s.back() == '.') s.pop_back();
+    return s;
+}
+
+inline std::string valueToString(Value v) {
+    switch (v.type) {
+        case VAL_NUMBER: return formatNumber(AS_NUMBER(v));
+        case VAL_BOOL:   return AS_BOOL(v) ? "true" : "false";
+        case VAL_NULL:   return "null";
+        case VAL_OBJ:
+            switch (OBJ_TYPE(v)) {
+                case OBJ_STRING: return AS_STRING(v)->stringValue;
+                default:         return "<obj>";
+            }
+        default: return "";
+    }
+}
+
+inline bool sameType(Value a, Value b){
+    if (IS_OBJ(a) && IS_OBJ(b)) return (OBJ_TYPE(a) == OBJ_TYPE(b));
+    return a.type == b.type;
 }
 
 static InterpretResult run() { // to be made faster after finishing
@@ -111,7 +116,7 @@ static InterpretResult run() { // to be made faster after finishing
     
     #define BINARY_OP(valueType, op) do{ \
         if(!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1)) ) { \
-           runtimeError("Operands must be numbers or strings."); \
+           runtimeError("Operands must be numbers (or strings for +/*)"); \
            return INTERPRET_RUNTIME_ERROR; \
         } \
         double b = AS_NUMBER(pop()); \
@@ -143,7 +148,7 @@ static InterpretResult run() { // to be made faster after finishing
 
     #define STRING_ADD() do { \
         Value _b = pop(); \
-        std::string result = VALUE_TO_STRING(*(vm.stackTop - 1)) + VALUE_TO_STRING(_b); \
+        std::string result = valueToString(*(vm.stackTop - 1)) + valueToString(_b); \
         *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
     } while(false)
 
@@ -151,11 +156,11 @@ static InterpretResult run() { // to be made faster after finishing
         if (IS_NUMBER(peek(0))) { \
             int n = std::max(0, (int)AS_NUMBER(pop())); \
             std::string result; \
-            result.reserve(AS_STRING(*(vm.stackTop-1))->value.size() * n); \
-            for (int i = 0; i < n; i++) result += AS_STRING(*(vm.stackTop-1))->value; \
+            result.reserve(AS_STRING(*(vm.stackTop-1))->stringValue.size() * n); \
+            for (int i = 0; i < n; i++) result += AS_STRING(*(vm.stackTop-1))->stringValue; \
             *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
         } else { \
-            std::string s = AS_STRING(pop())->value; \
+            std::string s = AS_STRING(pop())->stringValue; \
             int n = std::max(0, (int)AS_NUMBER(*(vm.stackTop - 1))); \
             std::string result; \
             result.reserve(s.size() * n); \
@@ -242,24 +247,29 @@ static InterpretResult run() { // to be made faster after finishing
             }
             case OP_NOT:          {BANG(BOOL_VAL);                   break;}
             case OP_OR:           {break;}
-            case OP_AND:           {break;}
+            case OP_AND:          {break;}
             //Comparison
             case OP_GREATER:      {BINARY_OP(BOOL_VAL, >);           break;}
             case OP_GREATER_EQUAL:{BINARY_OP(BOOL_VAL, >=);          break;}
             case OP_LESS:         {BINARY_OP(BOOL_VAL, <);           break;}
             case OP_LESS_EQUAL:   {BINARY_OP(BOOL_VAL, <=);          break;}
+            case OP_IS: {
+                Value right = pop();
+                *(vm.stackTop-1) = BOOL_VAL(sameType(*(vm.stackTop-1), right));
+                break;
+            }
             //Equality
             case OP_EQUAL_EQUAL:  {EQUAL_CHECK(BOOL_VAL,  );         break;}
             case OP_BANG_EQUAL:   {EQUAL_CHECK(BOOL_VAL, !);         break;}
             //Variables
             case OP_DEFINE_GLOBAL:{
-                std::string name = AS_STRING(READ_CONSTANT())->value;
+                std::string name = AS_STRING(READ_CONSTANT())->stringValue;
                 bool isConst = (READ_BYTE() == OP_CONST);
                 vm.globals[name] = {pop(), isConst};
                 break;
             }
             case OP_GET_GLOBAL:   {
-                std::string name = AS_STRING(READ_CONSTANT())->value;
+                std::string name = AS_STRING(READ_CONSTANT())->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
@@ -269,7 +279,7 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             case OP_SET_GLOBAL:   {
-                std::string name = AS_STRING(READ_CONSTANT())->value;
+                std::string name = AS_STRING(READ_CONSTANT())->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
@@ -283,13 +293,13 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             case OP_DEFINE_GLOBAL_BIG:{
-                std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
+                std::string name = AS_STRING(READ_CONSTANT_BIG())->stringValue;
                 bool isConst = (READ_BYTE() == OP_CONST);
                 vm.globals[name] = {pop(), isConst};
                 break;
             }
             case OP_GET_GLOBAL_BIG: {
-                std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
+                std::string name = AS_STRING(READ_CONSTANT_BIG())->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
@@ -299,7 +309,7 @@ static InterpretResult run() { // to be made faster after finishing
                 break;
             }
             case OP_SET_GLOBAL_BIG: {
-                std::string name = AS_STRING(READ_CONSTANT_BIG())->value;
+                std::string name = AS_STRING(READ_CONSTANT_BIG())->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());

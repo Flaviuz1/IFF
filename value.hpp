@@ -29,14 +29,14 @@ struct Value {
 };
 
 struct ObjString : Obj{
-    std::string value;
+    std::string stringValue;
 };
 
 #define AS_BOOL(value)    ((value).as.boolean)
 #define AS_NUMBER(value)  ((value).as.number)
 #define AS_OBJ(value)     ((value).as.obj)
 #define AS_STRING(value)  ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value) (AS_STRING(value)->value.c_str())
+#define AS_CSTRING(value) (AS_STRING(value)->stringValue.c_str())
 
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NULL(value)    ((value).type == VAL_NULL)
@@ -51,8 +51,6 @@ struct ObjString : Obj{
 #define OBJ_VAL(object)   ((Value){VAL_OBJ,    {.obj = (Obj*)object}})
 
 #define OBJ_TYPE(value)   (AS_OBJ(value)->type)
-
-#define VALUE_TO_STRING(_v) valueToString(_v)
 
 struct ValueArray
 {

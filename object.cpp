@@ -15,7 +15,7 @@ ObjString* copyString(const char* chars, int length) {
 ObjString* allocateString(std::string value) {
     ObjString* str = new ObjString();
     str->type = OBJ_STRING;
-    str->value = value;
+    str->stringValue = value;
     str->next = vm.objects;
     vm.objects = str;
     return str;

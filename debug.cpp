@@ -1,6 +1,7 @@
 #include <cstdio>
 #include <cstring>
 #include "debug.hpp"
+#include "object.hpp"
 #include "value.hpp"
 
 void disassembleChunk(Chunk *chunk, const char *name)
@@ -18,43 +19,56 @@ static int simpleInstruction(const char *name, int offset)
     return offset + 1;
 }
 
-static int constantInstructionBig(const char *name, Chunk *chunk, int offset)
-{
-    uint8_t constant_low  = chunk->code[offset + 3];
-    uint8_t constant_mid  = chunk->code[offset + 2];
-    uint8_t constant_high = chunk->code[offset + 1];
-    uint32_t constant = ((constant_high << 16) | (constant_mid << 8) | (constant_low));
-    printf("%-16s %4d '", name, constant);
-    printValue(chunk->constants.values[constant]);
-    printf("'\n");
-    return offset + 5;
-}
-
-static int constantInstruction(const char *name, Chunk *chunk, int offset)
-{
-    size_t len = strlen(name);
-    if (len >= 3 && memcmp(name + len - 3, "BIG", 3) == 0) {
-        return constantInstructionBig(name, chunk, offset);
-    }
+static int constantInstruction(const char* name, Chunk* chunk, int offset) {
     uint8_t idx = chunk->code[offset + 1];
-    printf("%-16s %4d '", name, idx);
+    printf("%-24s %4d '", name, idx);
     printValue(chunk->constants.values[idx]);
     printf("'\n");
+    return offset + 2;
+}
+
+static int constantInstructionBig(const char* name, Chunk* chunk, int offset) {
+    uint32_t idx = ((uint32_t)chunk->code[offset + 1] << 16)
+                 | ((uint32_t)chunk->code[offset + 2] << 8)
+                 |  (uint32_t)chunk->code[offset + 3];
+    printf("%-24s %4d '", name, idx);
+    printValue(chunk->constants.values[idx]);
+    printf("'\n");
+    return offset + 4;
+}
+
+static int defineGlobalInstruction(const char* name, Chunk* chunk, int offset) {
+    uint8_t idx     = chunk->code[offset + 1];
+    bool    isConst = (chunk->code[offset + 2] == OP_CONST);
+    printf("%-24s %4d '%s' (%s)\n", name, idx,
+        AS_CSTRING(chunk->constants.values[idx]),
+        isConst ? "const" : "var");
     return offset + 3;
 }
 
+static int defineGlobalBigInstruction(const char* name, Chunk* chunk, int offset) {
+    uint32_t idx = ((uint32_t)chunk->code[offset + 1] << 16)
+                 | ((uint32_t)chunk->code[offset + 2] << 8)
+                 |  (uint32_t)chunk->code[offset + 3];
+    bool isConst = (chunk->code[offset + 4] == OP_CONST);
+    printf("%-24s %4d '%s' (%s)\n", name, idx,
+        AS_CSTRING(chunk->constants.values[idx]),
+        isConst ? "const" : "var");
+    return offset + 5;
+}
+
 static int localInstruction(const char* name, Chunk* chunk, int offset) {
-    size_t len = strlen(name);
-    if (len >= 3 && memcmp(name + len - 3, "BIG", 3) == 0) {
-        uint32_t slot = ((uint32_t)chunk->code[offset + 1] << 16)
-                      | ((uint32_t)chunk->code[offset + 2] << 8)
-                      |  (uint32_t)chunk->code[offset + 3];
-        printf("%-16s %4d\n", name, slot);
-        return offset + 4;
-    }
     uint8_t slot = chunk->code[offset + 1];
-    printf("%-16s %4d\n", name, slot);
+    printf("%-24s %4d\n", name, slot);
     return offset + 2;
+}
+
+static int localInstructionBig(const char* name, Chunk* chunk, int offset) {
+    uint32_t slot = ((uint32_t)chunk->code[offset + 1] << 16)
+                  | ((uint32_t)chunk->code[offset + 2] << 8)
+                  |  (uint32_t)chunk->code[offset + 3];
+    printf("%-24s %4d\n", name, slot);
+    return offset + 4;
 }
 
 int disassembleInstruction(Chunk *chunk, int offset)
@@ -76,7 +90,7 @@ int disassembleInstruction(Chunk *chunk, int offset)
     case OP_CONSTANT:
         return constantInstruction("OP_CONSTANT", chunk, offset);
     case OP_CONSTANT_BIG:
-        return constantInstruction("OP_CONSTANT_BIG", chunk, offset);
+        return constantInstructionBig("OP_CONSTANT_BIG", chunk, offset);
     case OP_NEGATE:
         return simpleInstruction("OP_NEGATE", offset);
     case OP_ADD:
@@ -133,26 +147,24 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_BITWISE_NOT", offset);
     case OP_STRINGIFY:
         return simpleInstruction("OP_STRINGIFY", offset);
-    case OP_DEFINE_GLOBAL: 
-        return constantInstruction("OP_DEFINE_GLOBAL", chunk, offset);
-    case OP_GET_GLOBAL:
-        return constantInstruction("OP_GET_GLOBAL", chunk, offset);
-    case OP_SET_GLOBAL:
-        return constantInstruction("OP_SET_GLOBAL", chunk, offset);
     case OP_DEFINE_GLOBAL_BIG: 
-        return constantInstruction("OP_DEFINE_GLOBAL_BIG", chunk, offset);
-    case OP_GET_GLOBAL_BIG:
-        return constantInstruction("OP_GET_GLOBAL_BIG", chunk, offset);
-    case OP_SET_GLOBAL_BIG:
-        return constantInstruction("OP_SET_GLOBAL_BIG", chunk, offset);
-    case OP_GET_LOCAL:
+        return defineGlobalBigInstruction("OP_DEFINE_GLOBAL_BIG",  chunk, offset);
+    case OP_GET_GLOBAL:        
+        return constantInstruction("OP_GET_GLOBAL", chunk, offset);
+    case OP_SET_GLOBAL:        
+        return constantInstruction("OP_SET_GLOBAL", chunk, offset);
+    case OP_GET_GLOBAL_BIG:    
+        return constantInstructionBig("OP_GET_GLOBAL_BIG", chunk, offset);
+    case OP_SET_GLOBAL_BIG:    
+        return constantInstructionBig("OP_SET_GLOBAL_BIG", chunk, offset);
+    case OP_GET_LOCAL:         
         return localInstruction("OP_GET_LOCAL", chunk, offset);
-    case OP_GET_LOCAL_BIG:
-        return localInstruction("OP_GET_LOCAL_BIG", chunk, offset);
-    case OP_SET_LOCAL:
+    case OP_SET_LOCAL:         
         return localInstruction("OP_SET_LOCAL", chunk, offset);
-    case OP_SET_LOCAL_BIG:
-        return localInstruction("OP_SET_LOCAL_BIG", chunk, offset);
+    case OP_GET_LOCAL_BIG:     
+        return localInstructionBig("OP_GET_LOCAL_BIG", chunk, offset);
+    case OP_SET_LOCAL_BIG:     
+        return localInstructionBig("OP_SET_LOCAL_BIG", chunk, offset);
     case OP_PRINT_PLACEHOLDER:
         return simpleInstruction("OP_PRINT_PLACEHOLDER", offset);
     case OP_POP:
