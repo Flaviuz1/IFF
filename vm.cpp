@@ -300,7 +300,30 @@ static InterpretResult run() { // to be made faster after finishing
                 vm.globals[name] = peek(0);
                 break;
             }
-            //Assignment
+            case OP_GET_LOCAL: {
+                uint8_t slot = READ_BYTE();
+                push(vm.stack[slot]);
+                break;
+            }
+            case OP_SET_LOCAL: {
+                uint8_t slot = READ_BYTE();
+                vm.stack[slot] = peek(0);
+                break;
+            }
+            case OP_GET_LOCAL_BIG: {
+                uint32_t slot  = (uint32_t)READ_BYTE() << 16;
+                        slot |= (uint32_t)READ_BYTE() << 8;
+                        slot |= (uint32_t)READ_BYTE();
+                push(vm.stack[slot]);
+                break;
+            }
+            case OP_SET_LOCAL_BIG: {
+                uint32_t slot  = (uint32_t)READ_BYTE() << 16;
+                        slot |= (uint32_t)READ_BYTE() << 8;
+                        slot |= (uint32_t)READ_BYTE();
+                vm.stack[slot] = peek(0);
+                break;
+            }
             //Misc
             case OP_STRINGIFY:    {
                 if (!IS_STRING(peek(0))) {
@@ -324,6 +347,7 @@ static InterpretResult run() { // to be made faster after finishing
 
     #undef READ_BYTE
     #undef READ_CONSTANT
+    #undef READ_CONSTANT_BIG
     #undef BINARY_OP
     #undef NEGATE
     #undef BANG

@@ -48,6 +48,10 @@ enum OpCode
     OP_DEFINE_GLOBAL_BIG,
     OP_SET_GLOBAL_BIG,
     OP_GET_GLOBAL_BIG,
+    OP_GET_LOCAL,
+    OP_GET_LOCAL_BIG,
+    OP_SET_LOCAL,
+    OP_SET_LOCAL_BIG,
     // Statements
     OP_PRINT_PLACEHOLDER,
     OP_POP,

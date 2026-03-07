@@ -43,6 +43,20 @@ static int constantInstruction(const char *name, Chunk *chunk, int offset)
     return offset + 2;
 }
 
+static int localInstruction(const char* name, Chunk* chunk, int offset) {
+    size_t len = strlen(name);
+    if (len >= 3 && memcmp(name + len - 3, "BIG", 3) == 0) {
+        uint32_t slot = ((uint32_t)chunk->code[offset + 1] << 16)
+                      | ((uint32_t)chunk->code[offset + 2] << 8)
+                      |  (uint32_t)chunk->code[offset + 3];
+        printf("%-16s %4d\n", name, slot);
+        return offset + 4;
+    }
+    uint8_t slot = chunk->code[offset + 1];
+    printf("%-16s %4d\n", name, slot);
+    return offset + 2;
+}
+
 int disassembleInstruction(Chunk *chunk, int offset)
 {
     printf("%04d", offset);
@@ -131,6 +145,14 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return constantInstruction("OP_GET_GLOBAL_BIG", chunk, offset);
     case OP_SET_GLOBAL_BIG:
         return constantInstruction("OP_SET_GLOBAL_BIG", chunk, offset);
+    case OP_GET_LOCAL:
+        return localInstruction("OP_GET_LOCAL", chunk, offset);
+    case OP_GET_LOCAL_BIG:
+        return localInstruction("OP_GET_LOCAL_BIG", chunk, offset);
+    case OP_SET_LOCAL:
+        return localInstruction("OP_SET_LOCAL", chunk, offset);
+    case OP_SET_LOCAL_BIG:
+        return localInstruction("OP_SET_LOCAL_BIG", chunk, offset);
     case OP_PRINT_PLACEHOLDER:
         return simpleInstruction("OP_PRINT_PLACEHOLDER", offset);
     case OP_POP:
