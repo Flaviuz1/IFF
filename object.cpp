@@ -21,3 +21,15 @@ ObjString* allocateString(std::string value) {
     return str;
 }
 
+Range* allocateRange(double left, double right, double step) {
+    Range* range = new Range();
+    range->type = OBJ_RANGE;
+    range->left = left;
+    range->right = right;
+    range->current = left;
+    range->dir = (int)(right-left);
+    range->step = step;
+    range->next = vm.objects;
+    vm.objects = range;
+    return range;
+}

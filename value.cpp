@@ -52,10 +52,21 @@ void printValue(Value value)
             printf(AS_BOOL(value) ? "true" : "false");
             break;
         case VAL_NULL: printf("null"); break;
-        case VAL_NUMBER: printf("%g", AS_NUMBER(value)); break;
+        case VAL_NUMBER: {
+            double n = AS_NUMBER(value);
+            if (n == (long long)n) printf("%lld", (long long)n);
+            else printf("%.14g", n);
+            break;
+        }
         case VAL_OBJ: {
             switch (OBJ_TYPE(value)) {
                 case OBJ_STRING: printf("%s", AS_CSTRING(value)); break;
+                case OBJ_RANGE: {
+                    double n = AS_NUMBER(value);
+                    if (n == (long long)n) printf("%lld", (long long)n);
+                    else printf("%.14g", n);
+                    break;
+                }
                 default: printf("<unknown obj>"); break;
             }
             break;

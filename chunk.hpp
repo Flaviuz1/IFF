@@ -56,8 +56,16 @@ enum OpCode
     OP_CONST, OP_NOT_CONST,
     // Statements
     OP_PRINT_PLACEHOLDER,
-    OP_POP,
+    // Jumps
+    OP_JUMP_IF_FALSE,
+    OP_JUMP,
+    OP_LOOP,
+    // For loops
+    OP_RANGE,
+    OP_BY,
+    OP_FOR_ITERATE,
     // Others
+    OP_POP,
     OP_STRINGIFY
 };
 

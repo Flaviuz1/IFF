@@ -174,7 +174,14 @@ static TokenType checkKeyword(int start, int length, const char* rest, TokenType
 static TokenType identifierType() {
     switch (scanner.start[0]) {
         case 'a': return checkKeyword(1, 2, "nd", TOKEN_AND);
-        case 'b': return checkKeyword(1, 4, "reak", TOKEN_BREAK);
+        case 'b': 
+            if (scanner.current - scanner.start > 1) {
+                switch (scanner.start[1]) {
+                    case 'r': return checkKeyword(2, 3, "eak", TOKEN_BREAK);
+                    case 'y': return checkKeyword(2, 0, "", TOKEN_BY);
+                }
+            }
+            break;
         case 'c': 
             if (scanner.current - scanner.start > 1) {
                 switch (scanner.start[1]) {
@@ -274,7 +281,7 @@ Token scanToken(){
         case ';': return makeToken(TOKEN_SEMICOLON);
         case '.': return makeToken(TOKEN_DOT);
         case '+': return makeToken(match('+') ? TOKEN_PLUS_PLUS : match('=') ? TOKEN_PLUS_EQUAL : TOKEN_PLUS);
-        case '-': return makeToken(match('-') ? TOKEN_MINUS_MINUS : match('=') ? TOKEN_MINUS_EQUAL : TOKEN_MINUS);
+        case '-': return makeToken(match('-') ? TOKEN_MINUS_MINUS : match('=') ? TOKEN_MINUS_EQUAL : match('>') ? TOKEN_ARROW : TOKEN_MINUS);
         case '*': return makeToken(match('=') ? TOKEN_STAR_EQUAL : TOKEN_STAR);
         case '/': return makeToken(match('=') ? TOKEN_SLASH_EQUAL : TOKEN_SLASH);
         case '%': return makeToken(match('=') ? TOKEN_PERCENT_EQUAL : TOKEN_PERCENT);

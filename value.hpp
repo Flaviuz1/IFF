@@ -7,16 +7,26 @@ enum ValueType {
     VAL_BOOL,
     VAL_NULL,
     VAL_NUMBER,
-    VAL_OBJ
+    VAL_OBJ,
 };
 
 enum ObjType {
-    OBJ_STRING
+    OBJ_STRING,
+    OBJ_RANGE
 };
 
 struct Obj {
     ObjType type;
     Obj* next;
+};
+
+struct Range : Obj {
+    double left, right, current, step;
+    int dir;
+};
+
+struct ObjString : Obj{
+    std::string stringValue;
 };
 
 struct Value {
@@ -25,16 +35,14 @@ struct Value {
         bool boolean;
         double number;
         Obj* obj;
+        Range* range;
     } as;
-};
-
-struct ObjString : Obj{
-    std::string stringValue;
 };
 
 #define AS_BOOL(value)    ((value).as.boolean)
 #define AS_NUMBER(value)  ((value).as.number)
 #define AS_OBJ(value)     ((value).as.obj)
+#define AS_RANGE(value)   ((Range*)AS_OBJ(value))
 #define AS_STRING(value)  ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value) (AS_STRING(value)->stringValue.c_str())
 
@@ -42,6 +50,7 @@ struct ObjString : Obj{
 #define IS_NULL(value)    ((value).type == VAL_NULL)
 #define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
 #define IS_OBJ(value)     ((value).type == VAL_OBJ)
+#define IS_RANGE(value)   (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_RANGE)
 #define IS_STRING(value)  (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_STRING)
 
 #define BOOL_VAL(value)   ((Value){VAL_BOOL,   {.boolean = value}})
@@ -49,6 +58,7 @@ struct ObjString : Obj{
 #define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
 #define STRING_VAL(value) ((Value){VAL_OBJ,    {.obj = (Obj*)value}})
 #define OBJ_VAL(object)   ((Value){VAL_OBJ,    {.obj = (Obj*)object}})
+#define RANGE_VAL(value)  ((Value){VAL_OBJ,    {.obj = (Obj*)value}})
 
 #define OBJ_TYPE(value)   (AS_OBJ(value)->type)
 

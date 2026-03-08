@@ -104,6 +104,8 @@ static InterpretResult run() { // to be made faster after finishing
             ((uint32_t)READ_BYTE() << 8)  | \
             ((uint32_t)READ_BYTE())          \
         ])
+    #define READ_24BITS() \
+        (vm.ip += 3, ((uint32_t)(vm.ip[-3]) << 16) | ((uint32_t)(vm.ip[-2]) << 8) | (vm.ip[-1]))
     #define NEGATE(valueType) (*(vm.stackTop - 1) = valueType(-AS_NUMBER(*(vm.stackTop - 1))))
     #define BANG(valueType) (*(vm.stackTop - 1) = valueType(isFalsey(*(vm.stackTop - 1))))
     #define CREMENT(valueType, delta) do{ \
@@ -346,6 +348,45 @@ static InterpretResult run() { // to be made faster after finishing
                 vm.stack[slot] = peek(0);
                 break;
             }
+            //Moving around
+            case OP_JUMP: {
+                uint32_t offset = READ_24BITS();
+                vm.ip += offset;
+                break;
+            }
+            case OP_JUMP_IF_FALSE: {
+                uint32_t offset = READ_24BITS();
+                if (isFalsey(peek(0))) vm.ip += offset;
+                break;
+            }
+            case OP_LOOP: {
+                uint32_t offset = READ_24BITS();
+                vm.ip -= offset;
+                break;
+            }
+            //Fors
+            case OP_RANGE: {
+                double step  = AS_NUMBER(pop());
+                double right = AS_NUMBER(pop());
+                double left  = AS_NUMBER(pop());
+                push(RANGE_VAL(allocateRange(left, right, step)));
+                break;
+            }
+            case OP_FOR_ITERATE: {
+                Range* range = AS_RANGE(peek(1));
+                int direction = (range->right - range->left);
+                if ( direction == 0 ||
+                    (direction < 0 && range->right >= range->current) || 
+                    (direction > 0 && range->right <= range->current)) {
+                        uint32_t offset = READ_24BITS();
+                        vm.ip += offset;
+                        break;
+                }
+                vm.ip += 3;
+                *(vm.stackTop - 1) = NUMBER_VAL(range->current);
+                range->current += (direction > 0 ? range->step : -range->step);
+                break;
+            }
             //Misc
             case OP_STRINGIFY:    {
                 if (!IS_STRING(peek(0))) {
@@ -373,6 +414,7 @@ static InterpretResult run() { // to be made faster after finishing
     #undef READ_BYTE
     #undef READ_CONSTANT
     #undef READ_CONSTANT_BIG
+    #undef READ_24BITS
     #undef BINARY_OP
     #undef NEGATE
     #undef BANG

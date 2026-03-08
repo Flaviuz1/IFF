@@ -26,9 +26,16 @@ struct Local {
     bool  isConst;
 };
 
+struct LoopContext {
+    int loopStart;
+    int scopeDepth;
+    std::vector<int> breakJumps;
+};
+
 struct Compiler {
     std::vector<Local> locals;
     int scopeDepth;
+    std::vector<LoopContext> loopStack;
 };
 
 enum Precedence {
@@ -42,6 +49,7 @@ enum Precedence {
     PREC_BITWISE_XOR, // #
     PREC_BITWISE_AND, // &
     PREC_COMPARISON,  // < > <= >=
+    PREC_RANGE,       // ->
     PREC_SHIFT,       // << >>
     PREC_TERM,        // + -
     PREC_FACTOR,      // * / %
@@ -66,6 +74,9 @@ Chunk*    compilingChunk;
 static void        expression();
 static void        statement();
 static void        declaration();
+static void        and_(bool canAssign);
+static void        or_(bool canAssign);
+static void        range_(bool canAssign);
 static void        variable(bool canAssign);
 static void        unary(bool canAssign);
 static void        number(bool canAssign);
@@ -84,6 +95,7 @@ static Chunk* currentChunk() {
 static void initCompiler(Compiler* compiler) {
     compiler->locals.clear();
     compiler->scopeDepth = 0;
+    compiler->loopStack.clear();
     current = compiler;
 }
 
@@ -131,6 +143,15 @@ static void consume(TokenType type, const char* message) {
     error(message);
 }
 
+static Token syntheticToken(const char* name) {
+    Token token;
+    token.start  = name;
+    token.length = strlen(name);
+    token.type   = TOKEN_IDENTIFIER;
+    token.line   = 0;
+    return token;
+}
+
 static void emitByte(uint8_t byte) {
     writeChunk(currentChunk(), byte, parser.previous.line);
 }
@@ -167,6 +188,47 @@ static void emitGlobalOp(uint8_t smallOp, uint8_t bigOp, int index) {
         });
     } else {
         emitBytes({smallOp, (uint8_t)index});
+    }
+}
+
+static int emitJump(uint8_t instruction) {
+    emitBytes({instruction, 0xff, 0xff, 0xff});
+    return currentChunk()->count - 3;
+}
+
+static void patchJump(int offset) {
+    int jump = currentChunk()->count - offset - 3;
+
+    if (jump > 0xFFFFFF) {
+        error("Jump is too large, if you ever see this pop up what are you doing man...");
+    }
+
+    currentChunk()->code[offset]     = (uint8_t)((jump >> 16) & 0xFF);
+    currentChunk()->code[offset + 1] = (uint8_t)((jump >> 8)  & 0xFF);
+    currentChunk()->code[offset + 2] = (uint8_t)( jump        & 0xFF);
+}
+
+static void emitLoop(int loopStart) {
+    emitByte(OP_LOOP);
+
+    int offset = currentChunk()->count - loopStart + 3;
+    if (offset > 0xFFFFFF) {
+        error("Jump is too large, if you ever see this pop up what are you doing man...");
+    }
+
+    emitBytes({
+        (uint8_t)((offset >> 16) & 0xFF),
+        (uint8_t)((offset >> 8)  & 0xFF),
+        (uint8_t)( offset        & 0xFF)
+    });
+}
+
+// Emits OP_POP for every local declared deeper than `depth`.
+// Used by break/continue to clean up locals before jumping out of a loop.
+static void emitPopLocalsToDepth(int depth) {
+    for (int i = (int)current->locals.size() - 1; i >= 0; i--) {
+        if (current->locals[i].depth <= depth) break;
+        emitByte(OP_POP);
     }
 }
 
@@ -256,6 +318,8 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_TILDE,             {unary,    nullptr,            PREC_NONE}},
     {TOKEN_INTERP_START,      {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_INTERP_END,        {nullptr,  nullptr,            PREC_NONE}},
+    {TOKEN_ARROW,             {nullptr,  range_,             PREC_RANGE}},
+    {TOKEN_BY,                {nullptr,  nullptr,            PREC_NONE}},
     // Three character tokens
     {TOKEN_SHIFT_LEFT_EQUAL,  {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_SHIFT_RIGHT_EQUAL, {nullptr,  nullptr,            PREC_NONE}},
@@ -267,7 +331,7 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_HEX,               {number,   nullptr,            PREC_NONE}},
     {TOKEN_OCTAL,             {number,   nullptr,            PREC_NONE}},
     // Keywords
-    {TOKEN_AND,               {nullptr,  nullptr/*and_*/,    PREC_AND}},
+    {TOKEN_AND,               {nullptr,  and_,               PREC_AND}},
     {TOKEN_CLASS,             {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_ELSE,              {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_FALSE,             {literal,  nullptr,            PREC_NONE}},
@@ -275,10 +339,10 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_FUNC,              {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_IF,                {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_NULL,              {literal,  nullptr,            PREC_NONE}},
-    {TOKEN_OR,                {nullptr,  nullptr/*or_*/,     PREC_OR}},
+    {TOKEN_OR,                {nullptr,  or_,                PREC_OR}},
     {TOKEN_RETURN,            {nullptr,  nullptr,            PREC_NONE}},
-    {TOKEN_SUPER,             {nullptr/*super*/,  nullptr,   PREC_NONE}},
-    {TOKEN_SELF,              {nullptr/*self*/,   nullptr,   PREC_NONE}},
+    {TOKEN_SUPER,             {nullptr,  nullptr,            PREC_NONE}},
+    {TOKEN_SELF,              {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_TRUE,              {literal,  nullptr,            PREC_NONE}},
     {TOKEN_VAR,               {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_CON,               {nullptr,  nullptr,            PREC_NONE}},
@@ -301,6 +365,34 @@ static ParseRule* getRule(TokenType type) { return &rules[type]; }
 static void grouping(bool canAssign) {
     expression();
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+}
+
+static void range_(bool canAssign) {
+    parsePrecedence((Precedence)(PREC_RANGE + 1));
+
+    if (match(TOKEN_BY)) {
+        expression();
+    } else {
+        emitConstant(NUMBER_VAL(1.0));
+    }
+
+    emitByte(OP_RANGE);
+}
+
+static void and_(bool canAssign) {
+    int endJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);
+    parsePrecedence(PREC_AND);
+    patchJump(endJump);
+}
+
+static void or_(bool canAssign) {
+    int elseJump = emitJump(OP_JUMP_IF_FALSE);
+    int endJump  = emitJump(OP_JUMP);
+    patchJump(elseJump);
+    emitByte(OP_POP);
+    parsePrecedence(PREC_OR);
+    patchJump(endJump);
 }
 
 static void number(bool canAssign) {
@@ -398,7 +490,7 @@ static void variable(bool canAssign) {
         }
     };
     auto emitSet = [&]() {
-        if (localIdx_conState.second) {error("Cannot assign a value to a constant."); return;}
+        if (localIdx_conState.second) { error("Cannot assign a value to a constant."); return; }
         if (isLocal) emitGlobalOp(OP_SET_LOCAL, OP_SET_LOCAL_BIG, localIdx_conState.first);
         else {
             int nc = addConstant(currentChunk(), STRING_VAL(copyString(name.start, name.length)));
@@ -409,7 +501,6 @@ static void variable(bool canAssign) {
     canAssign = canAssign && !localIdx_conState.second;
     if (!canAssign) { emitGet(); return; }
 
-    //compound assignment table: token -> opcode
     struct CompoundOp { TokenType token; uint8_t op; };
     static const CompoundOp compoundOps[] = {
         {TOKEN_PLUS_EQUAL,        OP_ADD},
@@ -499,12 +590,111 @@ static void expressionStatement() {
     emitByte(OP_POP);
 }
 
+static void ifStatement() {
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after 'if'.");
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' to close condition.");
+
+    // If condition is false, jump over the then-branch
+    int thenJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);  // pop condition — we're on the true path
+    statement();       // then-branch
+
+    // Jump over the else-branch (if any)
+    int elseJump = emitJump(OP_JUMP);
+
+    // False path lands here
+    patchJump(thenJump);
+    emitByte(OP_POP);  // pop condition — we're on the false path
+
+    if (match(TOKEN_ELSE)) statement();  // else-branch
+    patchJump(elseJump);
+}
+
+static void whileStatement() {
+    int loopStart = currentChunk()->count;
+    current->loopStack.push_back({loopStart, current->scopeDepth, {}});
+
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after 'while'.");
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' to close condition.");
+
+    int exitJump = emitJump(OP_JUMP_IF_FALSE);
+    emitByte(OP_POP);  // pop condition — true path
+    statement();
+
+    emitLoop(loopStart);
+
+    patchJump(exitJump);
+    emitByte(OP_POP);  // pop condition — false path (loop exit)
+
+    for (int jump : current->loopStack.back().breakJumps) patchJump(jump);
+    current->loopStack.pop_back();
+}
+
+static void forStatement() {
+    beginScope();
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
+
+    if (match(TOKEN_CON)) error("Cannot make the iterable a constant.");
+    match(TOKEN_VAR);  // optional var
+    consume(TOKEN_IDENTIFIER, "Expect loop variable name.");
+    Token loopVar = parser.previous;
+
+    consume(TOKEN_IN, "Expect 'in' after loop variable.");
+
+    expression();  // pushes the range onto the stack
+    declareLocal(syntheticToken("__range__"), false);  // range is slot N
+    emitByte(OP_NULL);                                 // placeholder for loop var
+    declareLocal(loopVar, false);                      // loop var is slot N+1
+
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
+
+    current->loopStack.push_back({0, current->scopeDepth, {}});
+
+    int loopStart = currentChunk()->count;
+    current->loopStack.back().loopStart = loopStart;
+
+    int exitJump = emitJump(OP_FOR_ITERATE);  // checks range, assigns loop var or jumps out
+
+    statement();  // loop body
+
+    emitLoop(loopStart);
+    patchJump(exitJump);
+
+    for (int jump : current->loopStack.back().breakJumps) patchJump(jump);
+    current->loopStack.pop_back();
+
+    endScope();  // pops __range__ and loop var
+}
+
+static void breakStatement() {
+    if (current->loopStack.empty()) {
+        error("Cannot use 'break' outside of a loop.");
+        return;
+    }
+    consume(TOKEN_SEMICOLON, "Expect ';' after 'break'.");
+    emitPopLocalsToDepth(current->loopStack.back().scopeDepth);
+    int jump = emitJump(OP_JUMP);
+    current->loopStack.back().breakJumps.push_back(jump);
+}
+
+static void continueStatement() {
+    if (current->loopStack.empty()) {
+        error("Cannot use 'continue' outside of a loop.");
+        return;
+    }
+    consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
+    emitPopLocalsToDepth(current->loopStack.back().scopeDepth);
+    emitLoop(current->loopStack.back().loopStart);
+}
+
 static void synchronize() {
     parser.panicMode = false;
     while (parser.current.type != TOKEN_EOF) {
         if (parser.previous.type == TOKEN_SEMICOLON) return;
         switch (parser.current.type) {
-            case TOKEN_CLASS: case TOKEN_FUNC:  case TOKEN_VAR:     case TOKEN_CON:
+            case TOKEN_CLASS: case TOKEN_FUNC:  case TOKEN_VAR:  case TOKEN_CON:
             case TOKEN_FOR:   case TOKEN_IF:    case TOKEN_WHILE:
             case TOKEN_PRINT_PLACEHOLDER:       case TOKEN_RETURN:
                 return;
@@ -516,14 +706,19 @@ static void synchronize() {
 
 static void statement() {
     if      (match(TOKEN_PRINT_PLACEHOLDER)) printStatementPlaceholder();
+    else if (match(TOKEN_IF))                ifStatement();
+    else if (match(TOKEN_WHILE))             whileStatement();
+    else if (match(TOKEN_FOR))               forStatement();
+    else if (match(TOKEN_BREAK))             breakStatement();
+    else if (match(TOKEN_CONTINUE))          continueStatement();
     else if (match(TOKEN_LEFT_BRACE)) {      beginScope(); block(); endScope(); }
     else                                     expressionStatement();
 }
 
 static void declaration() {
-    if (match(TOKEN_VAR)) varDeclaration(false);
+    if      (match(TOKEN_VAR)) varDeclaration(false);
     else if (match(TOKEN_CON)) varDeclaration(true);
-    else                  statement();
+    else                       statement();
     if (parser.panicMode) synchronize();
 }
 
