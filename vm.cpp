@@ -1,3 +1,4 @@
+#define _USE_MATH_DEFINES
 #include <cstdio>
 #include <cmath>
 #include <string>
@@ -89,10 +90,10 @@ static void defineNative(const char* name, NativeFn function, int arity = -1) {
 void initVM(){
     resetStack();
     //constants
-    vm.globals["MATH_PI"]  = {NUMBER_VAL(M_PI), true};
-    vm.globals["MATH_E"]   = {NUMBER_VAL(M_E), true};
-    vm.globals["MATH_INF"] = {NUMBER_VAL(INFINITY), true};
-    vm.globals["MATH_NAN"] = {NUMBER_VAL(NAN), true};
+    vm.globals["MATH_PI"]  = varAtt{NUMBER_VAL(M_PI),    true};
+    vm.globals["MATH_E"]   = varAtt{NUMBER_VAL(M_E),     true};
+    vm.globals["MATH_INF"] = varAtt{NUMBER_VAL(INFINITY), true};
+    vm.globals["MATH_NAN"] = varAtt{NUMBER_VAL(NAN),      true};
     //io
     defineNative("clock", clockNative, 0);
     defineNative("print", printNative, 1);
@@ -122,7 +123,7 @@ void initVM(){
     defineNative("atan",  atanNative,  1);
     defineNative("atan2", atan2Native, 2);
     //random
-    
+
     //arrays
 
     //strings
