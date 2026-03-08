@@ -591,9 +591,11 @@ static void function(FunctionType type) {
             if (current->function->arity > 255) {
                 error("Can't have more than 255 parameters.");
             }
-            match(TOKEN_VAR) || match(TOKEN_CON);
+            
+            bool isConst = match(TOKEN_CON);
+            if (!isConst) match(TOKEN_VAR);
             consume(TOKEN_IDENTIFIER, "Expect parameter name.");
-            declareLocal(parser.previous, false);
+            declareLocal(parser.previous, isConst);
 
         } while (match(TOKEN_COMMA));
     }
