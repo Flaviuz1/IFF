@@ -544,9 +544,6 @@ static void variable(bool canAssign) {
         }
     };
 
-    canAssign = canAssign && !localIdx_conState.second;
-    if (!canAssign) { emitGet(); return; }
-
     struct CompoundOp { TokenType token; uint8_t op; };
     static const CompoundOp compoundOps[] = {
         {TOKEN_PLUS_EQUAL,        OP_ADD},
@@ -561,6 +558,28 @@ static void variable(bool canAssign) {
         {TOKEN_SHIFT_LEFT_EQUAL,  OP_SHIFT_LEFT},
         {TOKEN_SHIFT_RIGHT_EQUAL, OP_SHIFT_RIGHT},
     };
+
+    if (localIdx_conState.second) {
+        // still need to consume ++ -- etc. to avoid parser confusion
+        if (match(TOKEN_PLUS_PLUS) || match(TOKEN_MINUS_MINUS)) {
+            error("Cannot change the value of a constant.");
+            return;
+        }
+        for (auto& entry : compoundOps) {
+            if (match(entry.token)) {
+                error("Cannot change the value of a constant.");
+                return;
+            }
+        }
+        if (match(TOKEN_EQUAL)) {
+            error("Cannot assign a new value to a constant.");
+            return;
+        }
+        emitGet();
+        return;
+    }
+
+    if (!canAssign) { emitGet(); return; }
 
     if (match(TOKEN_EQUAL)) {
         expression(); emitSet();
@@ -591,7 +610,7 @@ static void function(FunctionType type) {
             if (current->function->arity > 255) {
                 error("Can't have more than 255 parameters.");
             }
-            
+
             bool isConst = match(TOKEN_CON);
             if (!isConst) match(TOKEN_VAR);
             consume(TOKEN_IDENTIFIER, "Expect parameter name.");
