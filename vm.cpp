@@ -88,13 +88,41 @@ static void defineNative(const char* name, NativeFn function, int arity = -1) {
 
 void initVM(){
     resetStack();
+    //constants
+    vm.globals["MATH_PI"]  = {NUMBER_VAL(M_PI), true};
+    vm.globals["MATH_E"]   = {NUMBER_VAL(M_E), true};
+    vm.globals["MATH_INF"] = {NUMBER_VAL(INFINITY), true};
+    vm.globals["MATH_NAN"] = {NUMBER_VAL(NAN), true};
     //io
     defineNative("clock", clockNative, 0);
     defineNative("print", printNative, 1);
-    defineNative("printn", printnNative, 1);
-    defineNative("input", inputNative, -1);
+    defineNative("printn",printnNative,1);
+    defineNative("input", inputNative,-1);
     //math
     defineNative("abs",   absNative,   1);
+    defineNative("max",   maxNative,  -1);
+    defineNative("min",   minNative,  -1);
+    defineNative("floor", floorNative, 1);
+    defineNative("ceil",  ceilNative,  1);
+    defineNative("round", roundNative, 1);
+    defineNative("trunc", truncNative, 1);
+    defineNative("sign",  signNative,  1);
+    defineNative("fract", fractNative, 1);
+    defineNative("clamp", clampNative, 3);
+    defineNative("lerp",  lerpNative,  3);
+    defineNative("exp",   expNative,   1);
+    defineNative("ln",    logNative,   1);
+    defineNative("log2",  log2Native,  1);
+    defineNative("log10", log10Native, 1);
+    defineNative("sin",   sinNative,   1);
+    defineNative("cos",   cosNative,   1);
+    defineNative("tan",   tanNative,   1);
+    defineNative("asin",  asinNative,  1);
+    defineNative("acos",  acosNative,  1);
+    defineNative("atan",  atanNative,  1);
+    defineNative("atan2", atan2Native, 2);
+    //random
+    
     //arrays
 
     //strings
