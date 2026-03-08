@@ -20,11 +20,11 @@ jobs:
       
       - name: Build (Linux/Mac)
         if: runner.os != 'Windows'
-        run: g++ *.cpp -o iff
+        run: g++ *.cpp -O2 -std=c++17 -o iff
 
       - name: Build (Windows)
         if: runner.os == 'Windows'
-        run: g++ (Get-ChildItem -Filter *.cpp | Select-Object -ExpandProperty Name) -o iff.exe
+        run: g++ (Get-ChildItem -Filter *.cpp | Select-Object -ExpandProperty Name) -O2 -std=c++17 -o iff.exe
         shell: pwsh
 
       - name: Copy MinGW DLLs (Windows)
