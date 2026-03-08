@@ -15,7 +15,8 @@ enum ValueType {
 enum ObjType {
     OBJ_STRING,
     OBJ_RANGE,
-    OBJ_FUNCTION
+    OBJ_FUNCTION,
+    OBJ_NATIVE
 };
 
 struct Obj {
@@ -49,6 +50,7 @@ struct Value {
 #define AS_STRING(value)  ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value) (AS_STRING(value)->stringValue.c_str())
 #define AS_FUNCTION(value)((ObjFunction*)AS_OBJ(value))
+#define AS_NATIVE(value)  ((ObjNative*)AS_OBJ(value))
 
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NULL(value)    ((value).type == VAL_NULL)
@@ -57,6 +59,7 @@ struct Value {
 #define IS_RANGE(value)   (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_RANGE)
 #define IS_STRING(value)  (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_STRING)
 #define IS_FUNCTION(value)(IS_OBJ(value) && AS_OBJ(value)->type == OBJ_FUNCTION)
+#define IS_NATIVE(value)  (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_NATIVE)
 
 #define BOOL_VAL(value)   ((Value){VAL_BOOL,   {.boolean = value}})
 #define NULL_VAL          ((Value){VAL_NULL,   {.number = 0}})

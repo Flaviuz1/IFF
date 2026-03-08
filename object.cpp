@@ -45,3 +45,14 @@ ObjFunction* newFunction() {
     initChunk(&fn->chunk);
     return fn;
 }
+
+static ObjNative* newNative(NativeFn function, int arity, const char* name) {
+    ObjNative* native = new ObjNative();
+    native->type     = OBJ_NATIVE;
+    native->next     = vm.objects;
+    native->function = function;
+    native->arity    = arity;
+    native->name     = name;
+    vm.objects       = native;
+    return native;
+}

@@ -8,6 +8,7 @@
 #include "common.hpp"
 #include "compiler.hpp"
 #include "object.hpp"
+#include "natives.hpp"
 
 VM vm;
 
@@ -58,7 +59,8 @@ static void freeObject(Obj* obj) {
             delete (ObjFunction*)obj;
             break;
         case OBJ_STRING: delete (ObjString*)obj; break;
-        case OBJ_RANGE:  delete (ObjRange*)obj;     break;
+        case OBJ_RANGE:  delete (ObjRange*)obj;  break;
+        case OBJ_NATIVE: delete (ObjNative*)obj; break;
     }
 }
 
@@ -81,6 +83,14 @@ static bool isFalsey(Value value) {
 
 void initVM(){
     resetStack();
+    //io
+    defineNative("clock", clockNative, 0);
+    //math
+    defineNative("abs",   absNative,   1);
+    //arrays
+
+    //strings
+    
     vm.objects = nullptr;
 }
 
@@ -137,12 +147,24 @@ static bool callValue(Value callee, int argCount) {
         switch (OBJ_TYPE(callee)) {
             case OBJ_FUNCTION:
                 return call(AS_FUNCTION(callee), argCount);
+            case OBJ_NATIVE: {
+                ObjNative* native = AS_NATIVE(callee);
+                Value result = native->function(argCount, vm.stackTop - argCount);
+                vm.stackTop -= argCount + 1;
+                push(result);
+                return true;
+            }
             default:
                 break;
         }
     }
     runtimeError("Can only call functions and classes.");
     return false;
+}
+
+static void defineNative(const char* name, NativeFn function, int arity = -1) {
+    ObjNative* native = newNative(function, arity, name);
+    vm.globals[std::string(name)] = {OBJ_VAL(native), false};
 }
 
 static InterpretResult run() {
