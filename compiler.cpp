@@ -32,7 +32,16 @@ struct LoopContext {
     std::vector<int> breakJumps;
 };
 
+enum FunctionType {
+    TYPE_SCRIPT,
+    TYPE_FUNCTION
+};
+
 struct Compiler {
+    Compiler* enclosing;
+    ObjFunction* function;
+    FunctionType type;
+
     std::vector<Local> locals;
     int scopeDepth;
     std::vector<LoopContext> loopStack;
@@ -69,11 +78,12 @@ struct ParseRule {
 
 Parser    parser;
 Compiler* current = nullptr;
-Chunk*    compilingChunk;
 
 static void        expression();
 static void        statement();
 static void        declaration();
+static void        block();
+static void        call(bool canAssign);
 static void        and_(bool canAssign);
 static void        or_(bool canAssign);
 static void        range_(bool canAssign);
@@ -89,14 +99,29 @@ static ParseRule*  getRule(TokenType type);
 static void        parsePrecedence(Precedence precedence);
 
 static Chunk* currentChunk() {
-    return compilingChunk;
+    return &current->function->chunk;
 }
 
-static void initCompiler(Compiler* compiler) {
+static void initCompiler(Compiler* compiler, FunctionType type) {
+    compiler->enclosing = current;
+    compiler->function = NULL;
+    compiler->type = type;
     compiler->locals.clear();
     compiler->scopeDepth = 0;
+    compiler->function = newFunction();
     compiler->loopStack.clear();
     current = compiler;
+
+    if(type != TYPE_SCRIPT){
+        current->function->name = copyString(parser.previous.start, parser.previous.length);
+    }
+
+    Local reserved;
+    reserved.name.start  = "";
+    reserved.name.length = 0;
+    reserved.depth       = 0;
+    reserved.isConst     = false;
+    current->locals.push_back(reserved);
 }
 
 static void errorAt(Token* token, const char* msg) {
@@ -160,7 +185,7 @@ static void emitBytes(std::vector<uint8_t> bytes) {
     for (auto byte : bytes) emitByte(byte);
 }
 
-static void emitReturn() { emitByte(OP_RETURN); }
+static void emitReturn() { emitByte(OP_NULL); emitByte(OP_RETURN); }
 
 static std::vector<uint8_t> makeConstant(Value value) {
     int constant = addConstant(currentChunk(), value);
@@ -223,8 +248,6 @@ static void emitLoop(int loopStart) {
     });
 }
 
-// Emits OP_POP for every local declared deeper than `depth`.
-// Used by break/continue to clean up locals before jumping out of a loop.
 static void emitPopLocalsToDepth(int depth) {
     for (int i = (int)current->locals.size() - 1; i >= 0; i--) {
         if (current->locals[i].depth <= depth) break;
@@ -232,11 +255,14 @@ static void emitPopLocalsToDepth(int depth) {
     }
 }
 
-static void endCompiler() {
+static ObjFunction* endCompiler() {
     emitReturn();
+    ObjFunction* function = current->function;
 #ifdef DEBUG_PRINT_CODE
-    if (!parser.hadError) disassembleChunk(currentChunk(), "code");
+    if (!parser.hadError) disassembleChunk(currentChunk(), function->name != nullptr? function->name->stringValue.c_str() : "<script>");
 #endif
+    current = current->enclosing;
+    return function;
 }
 
 static void beginScope() { current->scopeDepth++; }
@@ -262,6 +288,21 @@ static void declareLocal(Token name, bool con) {
     current->locals.push_back({name, current->scopeDepth, con});
 }
 
+static uint8_t argumentList() {
+    uint8_t argCount = 0;
+    if(!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            expression();
+            if (argCount == 255) {
+                error("Cannot exceed 255 arguments.");
+            }
+            argCount++;
+        } while(match(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' to close fuction.");
+    return argCount;
+}
+
 static std::pair<int, bool> resolveLocal(Token* name) {
     for (int i = (int)current->locals.size() - 1; i >= 0; i--) {
         Local& local = current->locals[i];
@@ -275,7 +316,7 @@ static std::pair<int, bool> resolveLocal(Token* name) {
 
 static std::unordered_map<TokenType, ParseRule> rules = {
     // Single-character tokens
-    {TOKEN_LEFT_PAREN,        {grouping, nullptr/*call*/,    PREC_CALL}},
+    {TOKEN_LEFT_PAREN,        {grouping, call,               PREC_CALL}},
     {TOKEN_RIGHT_PAREN,       {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_LEFT_BRACKET,      {nullptr,  nullptr/*index*/,   PREC_CALL}},
     {TOKEN_RIGHT_BRACKET,     {nullptr,  nullptr,            PREC_NONE}},
@@ -365,6 +406,11 @@ static ParseRule* getRule(TokenType type) { return &rules[type]; }
 static void grouping(bool canAssign) {
     expression();
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after expression.");
+}
+
+static void call(bool canAssign) {
+    uint8_t argCount = argumentList();
+    emitBytes({OP_CALL, argCount});
 }
 
 static void range_(bool canAssign) {
@@ -533,6 +579,32 @@ static void variable(bool canAssign) {
     }
 }
 
+static void function(FunctionType type) {
+    Compiler compiler;
+    initCompiler(&compiler, type);
+    beginScope();
+
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after function name.");
+    if (!check(TOKEN_RIGHT_PAREN)) {
+        do {
+            current->function->arity++;
+            if (current->function->arity > 255) {
+                error("Can't have more than 255 parameters.");
+            }
+
+            consume(TOKEN_IDENTIFIER, "Expect parameter name.");
+            declareLocal(parser.previous, false);
+
+        } while (match(TOKEN_COMMA));
+    }
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
+    consume(TOKEN_LEFT_BRACE, "Expect '{' before function body.");
+    block();
+
+    ObjFunction* fn = endCompiler();
+    emitConstant(OBJ_VAL(fn));
+}
+
 static void parsePrecedence(Precedence precedence) {
     advance();
     ParseFn prefixRule = getRule(parser.previous.type)->prefix;
@@ -578,6 +650,22 @@ static void varDeclaration(bool isConst) {
     emitByte(isConst ? OP_CONST : OP_NOT_CONST);
 }
 
+static void funcDeclaration() {
+    consume(TOKEN_IDENTIFIER, "Expect function name.");
+    Token name = parser.previous;
+
+    if (current->scopeDepth > 0) {
+        function(TYPE_FUNCTION);
+        declareLocal(name, false);
+    } else {
+        int nameConstant = addConstant(currentChunk(),
+            STRING_VAL(copyString(name.start, name.length)));
+        function(TYPE_FUNCTION);
+        emitGlobalOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, nameConstant);
+        emitByte(OP_NOT_CONST);
+    }
+}
+
 static void printStatementPlaceholder() {
     expression();
     consume(TOKEN_SEMICOLON, "Expect ';' after value.");
@@ -595,19 +683,16 @@ static void ifStatement() {
     expression();
     consume(TOKEN_RIGHT_PAREN, "Expect ')' to close condition.");
 
-    // If condition is false, jump over the then-branch
     int thenJump = emitJump(OP_JUMP_IF_FALSE);
-    emitByte(OP_POP);  // pop condition — we're on the true path
-    statement();       // then-branch
+    emitByte(OP_POP);
+    statement();
 
-    // Jump over the else-branch (if any)
     int elseJump = emitJump(OP_JUMP);
 
-    // False path lands here
     patchJump(thenJump);
-    emitByte(OP_POP);  // pop condition — we're on the false path
+    emitByte(OP_POP);
 
-    if (match(TOKEN_ELSE)) statement();  // else-branch
+    if (match(TOKEN_ELSE)) statement();
     patchJump(elseJump);
 }
 
@@ -620,13 +705,13 @@ static void whileStatement() {
     consume(TOKEN_RIGHT_PAREN, "Expect ')' to close condition.");
 
     int exitJump = emitJump(OP_JUMP_IF_FALSE);
-    emitByte(OP_POP);  // pop condition — true path
+    emitByte(OP_POP);
     statement();
 
     emitLoop(loopStart);
 
     patchJump(exitJump);
-    emitByte(OP_POP);  // pop condition — false path (loop exit)
+    emitByte(OP_POP);
 
     for (int jump : current->loopStack.back().breakJumps) patchJump(jump);
     current->loopStack.pop_back();
@@ -643,10 +728,10 @@ static void forStatement() {
 
     consume(TOKEN_IN, "Expect 'in' after loop variable.");
 
-    expression();  // pushes the range onto the stack
-    declareLocal(syntheticToken("__range__"), false);  // range is slot N
-    emitByte(OP_NULL);                                 // placeholder for loop var
-    declareLocal(loopVar, false);                      // loop var is slot N+1
+    expression();
+    declareLocal(syntheticToken("__range__"), false);
+    emitByte(OP_NULL);
+    declareLocal(loopVar, false);
 
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 
@@ -655,9 +740,9 @@ static void forStatement() {
     int loopStart = currentChunk()->count;
     current->loopStack.back().loopStart = loopStart;
 
-    int exitJump = emitJump(OP_FOR_ITERATE);  // checks range, assigns loop var or jumps out
+    int exitJump = emitJump(OP_FOR_ITERATE);
 
-    statement();  // loop body
+    statement();
 
     emitLoop(loopStart);
     patchJump(exitJump);
@@ -665,7 +750,7 @@ static void forStatement() {
     for (int jump : current->loopStack.back().breakJumps) patchJump(jump);
     current->loopStack.pop_back();
 
-    endScope();  // pops __range__ and loop var
+    endScope();
 }
 
 static void breakStatement() {
@@ -687,6 +772,57 @@ static void continueStatement() {
     consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
     emitPopLocalsToDepth(current->loopStack.back().scopeDepth);
     emitLoop(current->loopStack.back().loopStart);
+}
+
+static void matchStatement() {
+    consume(TOKEN_LEFT_PAREN, "Expect '(' after 'match'.");
+    expression();
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' to close condition.");
+    consume(TOKEN_LEFT_BRACE, "Expect '{' before match cases.");
+
+    std::vector<int> endJumps;
+
+    while (check(TOKEN_CASE)) {
+        advance();
+        emitByte(OP_DUP);
+        expression();
+        consume(TOKEN_COLON, "Expect ':' after case value.");
+        emitByte(OP_EQUAL_EQUAL);
+
+        int nextJump = emitJump(OP_JUMP_IF_FALSE);
+        emitByte(OP_POP);
+        emitByte(OP_POP);
+
+        statement();
+
+        endJumps.push_back(emitJump(OP_JUMP));
+        patchJump(nextJump);
+        emitByte(OP_POP);
+    }
+
+    if (match(TOKEN_DEFAULT)) {
+        consume(TOKEN_COLON, "Expect ':' after else.");
+        emitByte(OP_POP);
+        statement();
+    } else {
+        emitByte(OP_POP);
+    }
+
+    for (int jump : endJumps) patchJump(jump);
+    consume(TOKEN_RIGHT_BRACE, "Expect '}' after match cases.");
+}
+
+static void returnStatement() {
+    if (current->type == TYPE_SCRIPT) {
+        error("Cannot return from top-level code.");
+    }
+    if (match(TOKEN_SEMICOLON)) {
+        emitReturn();
+    } else {
+        expression();
+        consume(TOKEN_SEMICOLON, "Expect ';' after return value.");
+        emitByte(OP_RETURN);
+    }
 }
 
 static void synchronize() {
@@ -711,6 +847,8 @@ static void statement() {
     else if (match(TOKEN_FOR))               forStatement();
     else if (match(TOKEN_BREAK))             breakStatement();
     else if (match(TOKEN_CONTINUE))          continueStatement();
+    else if (match(TOKEN_MATCH))             matchStatement();
+    else if (match(TOKEN_RETURN))            returnStatement();
     else if (match(TOKEN_LEFT_BRACE)) {      beginScope(); block(); endScope(); }
     else                                     expressionStatement();
 }
@@ -718,21 +856,21 @@ static void statement() {
 static void declaration() {
     if      (match(TOKEN_VAR)) varDeclaration(false);
     else if (match(TOKEN_CON)) varDeclaration(true);
+    else if (match(TOKEN_FUNC))funcDeclaration();
     else                       statement();
     if (parser.panicMode) synchronize();
 }
 
-bool compile(const char* source, Chunk* chunk) {
+ObjFunction* compile(const char* source) {
     initScanner(source);
     Compiler compiler;
-    initCompiler(&compiler);
-    compilingChunk = chunk;
+    initCompiler(&compiler, TYPE_SCRIPT);
     parser.hadError  = false;
     parser.panicMode = false;
 
     advance();
     while (!match(TOKEN_EOF)) declaration();
-    endCompiler();
+    ObjFunction* function = endCompiler();
 
-    return !parser.hadError;
+    return parser.hadError ? NULL : function;
 }

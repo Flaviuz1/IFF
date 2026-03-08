@@ -3,6 +3,8 @@
 #include "common.hpp"
 #include <string>
 
+struct ObjFunction;
+
 enum ValueType {
     VAL_BOOL,
     VAL_NULL,
@@ -12,7 +14,8 @@ enum ValueType {
 
 enum ObjType {
     OBJ_STRING,
-    OBJ_RANGE
+    OBJ_RANGE,
+    OBJ_FUNCTION
 };
 
 struct Obj {
@@ -20,7 +23,7 @@ struct Obj {
     Obj* next;
 };
 
-struct Range : Obj {
+struct ObjRange : Obj {
     double left, right, current, step;
     int dir;
 };
@@ -35,16 +38,17 @@ struct Value {
         bool boolean;
         double number;
         Obj* obj;
-        Range* range;
+        ObjRange* range;
     } as;
 };
 
 #define AS_BOOL(value)    ((value).as.boolean)
 #define AS_NUMBER(value)  ((value).as.number)
 #define AS_OBJ(value)     ((value).as.obj)
-#define AS_RANGE(value)   ((Range*)AS_OBJ(value))
+#define AS_RANGE(value)   ((ObjRange*)AS_OBJ(value))
 #define AS_STRING(value)  ((ObjString*)AS_OBJ(value))
 #define AS_CSTRING(value) (AS_STRING(value)->stringValue.c_str())
+#define AS_FUNCTION(value)((ObjFunction*)AS_OBJ(value))
 
 #define IS_BOOL(value)    ((value).type == VAL_BOOL)
 #define IS_NULL(value)    ((value).type == VAL_NULL)
@@ -52,6 +56,7 @@ struct Value {
 #define IS_OBJ(value)     ((value).type == VAL_OBJ)
 #define IS_RANGE(value)   (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_RANGE)
 #define IS_STRING(value)  (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_STRING)
+#define IS_FUNCTION(value)(IS_OBJ(value) && AS_OBJ(value)->type == OBJ_FUNCTION)
 
 #define BOOL_VAL(value)   ((Value){VAL_BOOL,   {.boolean = value}})
 #define NULL_VAL          ((Value){VAL_NULL,   {.number = 0}})

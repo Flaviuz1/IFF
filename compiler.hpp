@@ -1,6 +1,7 @@
 #pragma once
 
 #include "common.hpp"
+#include "value.hpp"
 #include "vm.hpp"
 
-bool compile(const char* source, Chunk *chunk);
+ObjFunction* compile(const char* source);

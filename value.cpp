@@ -1,6 +1,7 @@
 #include <cstdio>
 #include "memory.hpp"
 #include "value.hpp"
+#include "object.hpp"
 
 void initValueArray(ValueArray *array)
 {
@@ -65,6 +66,12 @@ void printValue(Value value)
                     double n = AS_NUMBER(value);
                     if (n == (long long)n) printf("%lld", (long long)n);
                     else printf("%.14g", n);
+                    break;
+                }
+                case OBJ_FUNCTION: {
+                    ObjFunction* fn = AS_FUNCTION(value);
+                    if (fn->name == nullptr) printf("<script>");
+                    else printf("<func %s>", fn->name->stringValue.c_str());
                     break;
                 }
                 default: printf("<unknown obj>"); break;

@@ -1,11 +1,15 @@
 #pragma once
 
-#include "value.hpp"
+#include "chunk.hpp"
+#include <string>
 
-ObjString* copyString(const char* chars, int length);
-ObjString* allocateString(std::string value);
-Range* allocateRange(double left, double right, double step);
+struct ObjFunction : Obj {
+    int arity;
+    Chunk chunk;
+    ObjString* name;
+};
 
-static inline bool isObjType(Value value, ObjType type) {
-    return IS_OBJ(value) && AS_OBJ(value)->type == type;
-}
+ObjString*   copyString(const char* chars, int length);
+ObjString*   allocateString(std::string value);
+ObjRange*    allocateRange(double left, double right, double step);
+ObjFunction* newFunction();

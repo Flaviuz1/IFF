@@ -64,8 +64,11 @@ enum OpCode
     OP_RANGE,
     OP_BY,
     OP_FOR_ITERATE,
+    // Funcions
+    OP_CALL,
     // Others
     OP_POP,
+    OP_DUP,
     OP_STRINGIFY
 };
 

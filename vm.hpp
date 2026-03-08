@@ -1,17 +1,28 @@
 #pragma once
 
 #include "chunk.hpp"
+#include "value.hpp"
+#include "object.hpp"
 #include <unordered_map>
-#define STACK_MAX 1024
+#define FRAME_MAX 64
+#define UINT8_COUNT (UINT8_MAX + 1)
+#define STACK_MAX (FRAME_MAX * UINT8_COUNT)
+
+
+struct CallFrame {
+    ObjFunction* function;
+    uint8_t* ip;
+    Value* slots;
+};
 
 struct varAtt {
     Value value;
     bool isConst;
 };  
 
-struct VM{
-    Chunk* chunk;
-    uint8_t* ip;
+struct VM {
+    CallFrame frames[FRAME_MAX];
+    int frameCount;
     Value stack[STACK_MAX];
     Value* stackTop;
     Obj* objects;

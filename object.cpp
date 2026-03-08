@@ -5,6 +5,7 @@
 #include "object.hpp"
 #include "value.hpp"
 #include "vm.hpp"
+#include "chunk.hpp"
 
 extern VM vm;
 
@@ -21,8 +22,8 @@ ObjString* allocateString(std::string value) {
     return str;
 }
 
-Range* allocateRange(double left, double right, double step) {
-    Range* range = new Range();
+ObjRange* allocateRange(double left, double right, double step) {
+    ObjRange* range = new ObjRange();
     range->type = OBJ_RANGE;
     range->left = left;
     range->right = right;
@@ -32,4 +33,15 @@ Range* allocateRange(double left, double right, double step) {
     range->next = vm.objects;
     vm.objects = range;
     return range;
+}
+
+ObjFunction* newFunction() {
+    ObjFunction* fn = new ObjFunction();
+    fn->type  = OBJ_FUNCTION;
+    fn->arity = 0;
+    fn->name  = nullptr;
+    fn->next  = vm.objects;
+    vm.objects = fn;
+    initChunk(&fn->chunk);
+    return fn;
 }
