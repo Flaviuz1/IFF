@@ -4,7 +4,7 @@
 #include "value.hpp"
 #include "object.hpp"
 #include <unordered_map>
-#define FRAME_MAX 64
+#define FRAME_MAX 512
 #define UINT8_COUNT (UINT8_MAX + 1)
 #define STACK_MAX (FRAME_MAX * UINT8_COUNT)
 
