@@ -387,7 +387,6 @@ static std::unordered_map<TokenType, ParseRule> rules = {
     {TOKEN_TRUE,              {literal,  nullptr,            PREC_NONE}},
     {TOKEN_VAR,               {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_CON,               {nullptr,  nullptr,            PREC_NONE}},
-    {TOKEN_PRINT_PLACEHOLDER, {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_WHILE,             {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_IN,                {nullptr,  nullptr,            PREC_NONE}},
     {TOKEN_IS,                {nullptr,  binary,             PREC_COMPARISON}},
@@ -687,12 +686,6 @@ static void funcDeclaration() {
     }
 }
 
-static void printStatementPlaceholder() {
-    expression();
-    consume(TOKEN_SEMICOLON, "Expect ';' after value.");
-    emitByte(OP_PRINT_PLACEHOLDER);
-}
-
 static void expressionStatement() {
     expression();
     consume(TOKEN_SEMICOLON, "Expect ';' after expression.");
@@ -852,8 +845,7 @@ static void synchronize() {
         if (parser.previous.type == TOKEN_SEMICOLON) return;
         switch (parser.current.type) {
             case TOKEN_CLASS: case TOKEN_FUNC:  case TOKEN_VAR:  case TOKEN_CON:
-            case TOKEN_FOR:   case TOKEN_IF:    case TOKEN_WHILE:
-            case TOKEN_PRINT_PLACEHOLDER:       case TOKEN_RETURN:
+            case TOKEN_FOR:   case TOKEN_IF:    case TOKEN_WHILE:  case TOKEN_RETURN:
                 return;
             default: break;
         }
@@ -862,8 +854,7 @@ static void synchronize() {
 }
 
 static void statement() {
-    if      (match(TOKEN_PRINT_PLACEHOLDER)) printStatementPlaceholder();
-    else if (match(TOKEN_IF))                ifStatement();
+    if      (match(TOKEN_IF))                ifStatement();
     else if (match(TOKEN_WHILE))             whileStatement();
     else if (match(TOKEN_FOR))               forStatement();
     else if (match(TOKEN_BREAK))             breakStatement();

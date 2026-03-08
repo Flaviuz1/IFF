@@ -26,7 +26,7 @@ struct Obj {
 
 struct ObjRange : Obj {
     double left, right, current, step;
-    int dir;
+    int dir, iterations;
 };
 
 struct ObjString : Obj{

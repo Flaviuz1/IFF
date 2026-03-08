@@ -173,8 +173,6 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return localInstructionBig("OP_GET_LOCAL_BIG", chunk, offset);
     case OP_SET_LOCAL_BIG:     
         return localInstructionBig("OP_SET_LOCAL_BIG", chunk, offset);
-    case OP_PRINT_PLACEHOLDER:
-        return simpleInstruction("OP_PRINT_PLACEHOLDER", offset);
     case OP_POP:
         return simpleInstruction("OP_SEMICOLON / OP_POP", offset);
     case OP_JUMP_IF_FALSE:

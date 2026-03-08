@@ -54,8 +54,6 @@ enum OpCode
     OP_SET_LOCAL,
     OP_SET_LOCAL_BIG,
     OP_CONST, OP_NOT_CONST,
-    // Statements
-    OP_PRINT_PLACEHOLDER,
     // Jumps
     OP_JUMP_IF_FALSE,
     OP_JUMP,

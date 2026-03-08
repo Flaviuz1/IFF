@@ -223,7 +223,6 @@ static TokenType identifierType() {
         case 'm': return checkKeyword(1, 4, "atch", TOKEN_MATCH);
         case 'n': return checkKeyword(1, 3, "ull", TOKEN_NULL);
         case 'o': return checkKeyword(1, 1, "r", TOKEN_OR);
-        case 'p': return checkKeyword(1, 16,"rint_placeholder", TOKEN_PRINT_PLACEHOLDER);
         case 'r': return checkKeyword(1, 5, "eturn", TOKEN_RETURN);
         case 's': 
             if (scanner.current - scanner.start > 1) {

@@ -30,6 +30,7 @@ ObjRange* allocateRange(double left, double right, double step) {
     range->current = left;
     range->dir = (int)(right-left);
     range->step = step;
+    range->iterations = 0;
     range->next = vm.objects;
     vm.objects = range;
     return range;
@@ -46,7 +47,7 @@ ObjFunction* newFunction() {
     return fn;
 }
 
-static ObjNative* newNative(NativeFn function, int arity, const char* name) {
+ObjNative* newNative(NativeFn function, int arity, const char* name) {
     ObjNative* native = new ObjNative();
     native->type     = OBJ_NATIVE;
     native->next     = vm.objects;

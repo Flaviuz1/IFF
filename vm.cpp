@@ -81,16 +81,24 @@ static bool isFalsey(Value value) {
     return IS_NULL(value) || (IS_BOOL(value) && !AS_BOOL(value));
 }
 
+static void defineNative(const char* name, NativeFn function, int arity = -1) {
+    ObjNative* native = newNative(function, arity, name);
+    vm.globals[std::string(name)] = {OBJ_VAL(native), false};
+}
+
 void initVM(){
     resetStack();
     //io
     defineNative("clock", clockNative, 0);
+    defineNative("print", printNative, 1);
+    defineNative("printn", printnNative, 1);
+    defineNative("input", inputNative, -1);
     //math
     defineNative("abs",   absNative,   1);
     //arrays
 
     //strings
-    
+
     vm.objects = nullptr;
 }
 
@@ -160,11 +168,6 @@ static bool callValue(Value callee, int argCount) {
     }
     runtimeError("Can only call functions and classes.");
     return false;
-}
-
-static void defineNative(const char* name, NativeFn function, int arity = -1) {
-    ObjNative* native = newNative(function, arity, name);
-    vm.globals[std::string(name)] = {OBJ_VAL(native), false};
 }
 
 static InterpretResult run() {
@@ -451,7 +454,8 @@ static InterpretResult run() {
                 }
                 frame->ip += 3;
                 *(vm.stackTop - 1) = NUMBER_VAL(range->current);
-                range->current += (direction > 0 ? range->step : -range->step);
+                range->current = range->left + (range->iterations * range->step);
+                range->iterations++;
                 break;
             }
             //functions
@@ -466,11 +470,6 @@ static InterpretResult run() {
                 if (!IS_STRING(peek(0))) {
                     *(vm.stackTop - 1) = STRING_VAL(allocateString(valueToString(*(vm.stackTop - 1))));
                 }
-                break;
-            }
-            case OP_PRINT_PLACEHOLDER: {
-                printValue(pop());
-                printf("\n");
                 break;
             }
             case OP_POP: { pop(); break; }
