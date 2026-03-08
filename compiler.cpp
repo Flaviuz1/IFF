@@ -591,7 +591,7 @@ static void function(FunctionType type) {
             if (current->function->arity > 255) {
                 error("Can't have more than 255 parameters.");
             }
-
+            match(TOKEN_VAR) || match(TOKEN_CON);
             consume(TOKEN_IDENTIFIER, "Expect parameter name.");
             declareLocal(parser.previous, false);
 
