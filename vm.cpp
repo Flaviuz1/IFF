@@ -3,6 +3,7 @@
 #include <cmath>
 #include <string>
 #include <cstdarg>
+#include <ctime>
 #include "vm.hpp"
 #include "value.hpp"
 #include "debug.hpp"
@@ -89,6 +90,7 @@ static void defineNative(const char* name, NativeFn function, int arity = -1) {
 
 void initVM(){
     resetStack();
+    srand((unsigned int)time(nullptr));
     //constants
     vm.globals["MATH_PI"]  = varAtt{NUMBER_VAL(M_PI),    true};
     vm.globals["MATH_E"]   = varAtt{NUMBER_VAL(M_E),     true};
@@ -123,11 +125,39 @@ void initVM(){
     defineNative("atan",  atanNative,  1);
     defineNative("atan2", atan2Native, 2);
     //random
-
+    defineNative("random",  randomNative,   0);
+    defineNative("seedset", seedNative,     1);
+    defineNative("randomin",randominNative, 2);
     //arrays
 
     //strings
+    defineNative("len",         lenNative,         1);
+    defineNative("upper",       upperNative,        1);
+    defineNative("lower",       lowerNative,        1);
+    defineNative("trim",        trimNative,         1);
+    defineNative("substr",      substrNative,       3);
+    defineNative("contains",    containsNative,     2);
+    defineNative("indexOf",     indexOfNative,      2);
+    defineNative("charAt",      charAtNative,       2);
+    defineNative("charCode",    charCodeNative,     2);
+    defineNative("fromCharCode",fromCharCodeNative, 1);
+    defineNative("replace",     replaceNative,      3);
+    defineNative("repeat",      repeatNative,       2);
+    defineNative("startsWith",  startsWithNative,   2);
+    defineNative("endsWith",    endsWithNative,     2);
 
+    //type conversions
+    defineNative("toNumber", toNumberNative, 1);
+    defineNative("toString", toStringNative, 1);
+    defineNative("toBool",   toBoolNative,   1);
+    defineNative("typeOf",   typeOfNative,   1);
+    defineNative("isNumber", isNumberNative, 1);
+    defineNative("isString", isStringNative, 1);
+    defineNative("isBool",   isBoolNative,   1);
+    defineNative("isNull",   isNullNative,   1);
+    defineNative("isFunc",   isFuncNative,   1);
+    defineNative("isNaN",    isNaNNative,    1);
+    defineNative("isInf",    isInfNative,    1);
     vm.objects = nullptr;
 }
 

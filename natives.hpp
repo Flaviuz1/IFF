@@ -31,6 +31,37 @@ Value asinNative  (int argCount, Value* args);
 Value acosNative  (int argCount, Value* args);
 Value atanNative  (int argCount, Value* args);
 Value atan2Native (int argCount, Value* args);
-//random    
+//random
+Value randomNative(int argCount, Value* args);
+Value seedNative  (int argCount, Value* args);
+Value randominNative(int argCount, Value* args);
 //arrays
+
 //strings
+Value lenNative         (int argCount, Value* args);
+Value upperNative       (int argCount, Value* args);
+Value lowerNative       (int argCount, Value* args);
+Value trimNative        (int argCount, Value* args);
+Value substrNative      (int argCount, Value* args);
+Value containsNative    (int argCount, Value* args);
+Value indexOfNative     (int argCount, Value* args);
+Value charAtNative      (int argCount, Value* args);
+Value charCodeNative    (int argCount, Value* args);
+Value fromCharCodeNative(int argCount, Value* args);
+Value replaceNative     (int argCount, Value* args);
+Value repeatNative      (int argCount, Value* args);
+Value startsWithNative  (int argCount, Value* args);
+Value endsWithNative    (int argCount, Value* args);
+
+//conversions
+Value toNumberNative     (int argCount, Value* args);
+Value toStringNative     (int argCount, Value* args);
+Value toBoolNative       (int argCount, Value* args);
+Value typeOfNative       (int argCount, Value* args);
+Value isNumberNative     (int argCount, Value* args);
+Value isStringNative     (int argCount, Value* args);
+Value isBoolNative       (int argCount, Value* args);
+Value isNullNative       (int argCount, Value* args);
+Value isFuncNative       (int argCount, Value* args);
+Value isNaNNative        (int argCount, Value* args);
+Value isInfNative        (int argCount, Value* args);
