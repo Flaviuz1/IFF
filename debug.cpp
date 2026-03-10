@@ -191,8 +191,8 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_RANGE", offset);
     case OP_BY:
         return simpleInstruction("OP_BY", offset);
-    case OP_FOR_ITERATE:
-        return jumpInstruction("OP_FOR_ITERATE", 1, chunk, offset);
+    case OP_FOR_LOOP:
+        return jumpInstruction("OP_FOR_LOOP", 1, chunk, offset);
     default:
         printf("Unknown opcode %d\n", instruction);
         return offset + 1;

@@ -236,12 +236,17 @@ static bool callValue(Value callee, int argCount) {
 static InterpretResult run() {
     CallFrame* frame = &vm.frames[vm.frameCount - 1];
     Value* stackTop = vm.stackTop;
+    uint8_t* ip = frame->ip;
 
     #define PUSH(v)   (*stackTop++ = (v))
     #define POP()     (*(--stackTop))
     #define PEEK(d)   (stackTop[-1-(d)])
+
     #define SYNC()    (vm.stackTop = stackTop)
     #define RELOAD()  (stackTop = vm.stackTop)
+
+    #define SYNC_IP()   (frame->ip = ip)
+    #define RELOAD_IP() (ip = frame->ip)
 
     static void* table[] = {
         &&L_OP_RETURN,           // 0
@@ -289,18 +294,18 @@ static InterpretResult run() {
         &&L_OP_NOT_CONST,        // 42
         &&L_OP_JUMP_IF_FALSE,    // 43
         &&L_OP_JUMP,             // 44
-        &&L_OP_LOOP,             // 45
-        &&L_OP_RANGE,            // 46
-        &&L_OP_BY,               // 47
-        &&L_OP_FOR_ITERATE,      // 48
-        &&L_OP_CALL,             // 49
-        &&L_OP_POP,              // 50
-        &&L_OP_DUP,              // 51
-        &&L_OP_STRINGIFY,        // 52
+        &&L_OP_RANGE,            // 45
+        &&L_OP_BY,               // 46
+        &&L_OP_FOR_LOOP,         // 47
+        &&L_OP_CALL,             // 48
+        &&L_OP_POP,              // 49
+        &&L_OP_DUP,              // 50
+        &&L_OP_STRINGIFY,        // 51
+        &&L_OP_LOOP,             // 52
     };
 
     // @section: Macros 
-    #define READ_BYTE()         (*frame->ip++)
+    #define READ_BYTE()         (*ip++)
     #define READ_CONSTANT()     (frame->function->chunk.constants.values[READ_BYTE()])
     #define READ_CONSTANT_BIG() \
         (frame->function->chunk.constants.values[ \
@@ -310,10 +315,10 @@ static InterpretResult run() {
         ])
     //frame->ip FROM vm.ip
     #define READ_24BITS() \
-        (frame->ip += 3, \
-         ((uint32_t)(frame->ip[-3]) << 16) | \
-         ((uint32_t)(frame->ip[-2]) << 8)  | \
-          (uint32_t)(frame->ip[-1]))
+        (ip += 3, \
+        ((uint32_t)(ip[-3]) << 16) | \
+        ((uint32_t)(ip[-2]) << 8)  | \
+        (uint32_t)(ip[-1]))
 
     #define NEGATE(valueType)   (*(stackTop - 1) = valueType(-AS_NUMBER(*(stackTop - 1))))
     #define BANG(valueType)     (*(stackTop - 1) = valueType(isFalsey(*(stackTop - 1))))
@@ -321,7 +326,9 @@ static InterpretResult run() {
     #define CREMENT(valueType, delta) do { \
         Value _a = *(stackTop - 1); \
         if (!IS_NUMBER(_a)) { \
+            SYNC(); SYNC_IP(); \
             runtimeError("Operand must be a number."); \
+            RELOAD(); RELOAD_IP(); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
         *(stackTop - 1) = valueType(AS_NUMBER(_a) + delta); \
@@ -331,7 +338,9 @@ static InterpretResult run() {
         Value _b = *(stackTop - 1); \
         Value _a = *(stackTop - 2); \
         if (!IS_NUMBER(_a) || !IS_NUMBER(_b)) { \
+            SYNC(); SYNC_IP(); \
             runtimeError("Operands must be numbers."); \
+            RELOAD(); RELOAD_IP(); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
         stackTop--; \
@@ -348,7 +357,9 @@ static InterpretResult run() {
         Value _b = *(stackTop - 1); \
         Value _a = *(stackTop - 2); \
         if (!IS_NUMBER(_a) || !IS_NUMBER(_b)) { \
+            SYNC(); SYNC_IP(); \
             runtimeError("Operands must be numbers."); \
+            RELOAD(); RELOAD_IP(); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
         stackTop--; \
@@ -359,7 +370,9 @@ static InterpretResult run() {
         Value _b = *(stackTop - 1); \
         Value _a = *(stackTop - 2); \
         if (!IS_NUMBER(_a) || !IS_NUMBER(_b)) { \
+            SYNC(); SYNC_IP(); \
             runtimeError("Operands must be numbers."); \
+            RELOAD(); RELOAD_IP(); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
         stackTop--; \
@@ -392,7 +405,7 @@ static InterpretResult run() {
                 printf("          "); \
                 for (Value* slot = vm.stack; slot < stackTop; slot++) { printf("[ "); printValue(*slot); printf(" ]"); } \
                 printf("\n"); \
-                disassembleInstruction(&frame->function->chunk, (int)(frame->ip - frame->function->chunk.code)); \
+                disassembleInstruction(&frame->function->chunk, (int)(ip - frame->function->chunk.code)); \
                 goto *table[READ_BYTE()]; \
             } while(0)
     #else
@@ -420,7 +433,9 @@ static InterpretResult run() {
         } else if (IS_OBJ_TYPE(PEEK(0), OBJ_STRING) || IS_OBJ_TYPE(PEEK(1), OBJ_STRING)) {
             STRING_ADD();
         } else {
+            SYNC(); SYNC_IP();
             runtimeError("Operands must be numbers or strings.");
+            RELOAD(); RELOAD_IP();
             return INTERPRET_RUNTIME_ERROR;
         }
         DISPATCH();
@@ -450,7 +465,9 @@ static InterpretResult run() {
     L_OP_BITWISE_XOR:  { BITWISE_OP(NUMBER_VAL, ^);   DISPATCH(); }
     L_OP_BITWISE_NOT: {
         if (!IS_NUMBER(PEEK(0))) {
+            SYNC(); SYNC_IP();
             runtimeError("Operand must be a number.");
+            RELOAD(); RELOAD_IP();
             return INTERPRET_RUNTIME_ERROR;
         }
         *(stackTop - 1) = NUMBER_VAL((double)(~(int)AS_NUMBER(*(stackTop - 1))));
@@ -458,7 +475,9 @@ static InterpretResult run() {
     }
     L_OP_NEGATE: {
         if (!IS_NUMBER(PEEK(0))) {
+            SYNC(); SYNC_IP();
             runtimeError("Operand must be a number.");
+            RELOAD(); RELOAD_IP();
             return INTERPRET_RUNTIME_ERROR;
         }
         NEGATE(NUMBER_VAL);
@@ -496,7 +515,9 @@ static InterpretResult run() {
     L_OP_SET_GLOBAL: {
         uint8_t idx = READ_BYTE();
         if (vm.globals[idx].isConst) {
+            SYNC(); SYNC_IP();
             runtimeError("Cannot reassign value to a constant.");
+            RELOAD(); RELOAD_IP();
             return INTERPRET_RUNTIME_ERROR;
         }
         vm.globals[idx].value = PEEK(0);
@@ -517,7 +538,9 @@ static InterpretResult run() {
     L_OP_SET_GLOBAL_BIG: {
         uint32_t idx = READ_24BITS();
         if (vm.globals[idx].isConst) {
+            SYNC(); SYNC_IP();
             runtimeError("Cannot reassign value to a constant.");
+            RELOAD(); RELOAD_IP();
             return INTERPRET_RUNTIME_ERROR;
         }
         vm.globals[idx].value = PEEK(0);
@@ -551,17 +574,37 @@ static InterpretResult run() {
     L_OP_NOT_CONST: { DISPATCH(); }
     L_OP_JUMP: {
         uint32_t offset = READ_24BITS();
-        frame->ip += offset;
+        ip += offset;
         DISPATCH();
     }
     L_OP_JUMP_IF_FALSE: {
         uint32_t offset = READ_24BITS();
-        if (isFalsey(PEEK(0))) frame->ip += offset;
+        if (isFalsey(PEEK(0))) ip += offset;
         DISPATCH();
     }
     L_OP_LOOP: {
         uint32_t offset = READ_24BITS();
-        frame->ip -= offset;
+        ip -= offset;
+        DISPATCH();
+        DISPATCH();
+    }
+    L_OP_FOR_LOOP: {
+        double next = AS_NUMBER(*(stackTop - 2));
+        double step = AS_NUMBER(*(stackTop - 3));
+        double end  = AS_NUMBER(*(stackTop - 4));
+
+        bool done = (step > 0) ? (next >= end)
+                : (step < 0) ? (next <= end)
+                : true;
+
+        uint32_t offset = READ_24BITS();
+
+        if (!done) {
+            *(stackTop - 1) = NUMBER_VAL(next);
+            *(stackTop - 2) = NUMBER_VAL(next + step);
+            ip -= offset;  // loop back to body
+        }
+        // if done, fall through to after loop
         DISPATCH();
     }
     L_OP_RANGE: {
@@ -575,31 +618,12 @@ static InterpretResult run() {
         DISPATCH();
     }
     L_OP_BY: { DISPATCH(); }
-    L_OP_FOR_ITERATE: {
-        double next = AS_NUMBER(*(stackTop - 2));
-        double step = AS_NUMBER(*(stackTop - 3));
-        double end  = AS_NUMBER(*(stackTop - 4));
-
-        bool done = (step > 0) ? (next >= end)
-                : (step < 0) ? (next <= end)
-                : true;
-
-        if (done) {
-            uint32_t offset = READ_24BITS();
-            frame->ip += offset;
-            DISPATCH();
-        }
-        frame->ip += 3;
-        *(stackTop - 1) = NUMBER_VAL(next);
-        *(stackTop - 2) = NUMBER_VAL(next + step);
-        DISPATCH();
-    }
     L_OP_CALL: {
         int argCount = READ_BYTE();
-        SYNC();
+        SYNC(); SYNC_IP();
         if (!callValue(PEEK(argCount), argCount)) return INTERPRET_RUNTIME_ERROR;
-        RELOAD();
         frame = &vm.frames[vm.frameCount - 1];
+        RELOAD(); RELOAD_IP();
         DISPATCH();
     }
     L_OP_STRINGIFY: {
@@ -612,14 +636,17 @@ static InterpretResult run() {
     L_OP_DUP: { PUSH(PEEK(0)); DISPATCH(); }
     L_OP_RETURN: {
         Value result = POP();
+        SYNC(); SYNC_IP();
         vm.frameCount--;
         if (vm.frameCount == 0) {
             POP();
             return INTERPRET_OK;
         }
-        stackTop = frame->slots;
-        PUSH(result);
+        vm.stackTop = frame->slots;
+        vm.stackTop++;  // push result
+        vm.stackTop[-1] = result;
         frame = &vm.frames[vm.frameCount - 1];
+        RELOAD(); RELOAD_IP();
         DISPATCH();
     }
     // @endsection

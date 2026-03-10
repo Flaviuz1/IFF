@@ -746,14 +746,26 @@ static void forStatement() {
 
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 
-    current->loopStack.push_back({0, current->scopeDepth, {}});
-    int loopStart = currentChunk()->count;
-    current->loopStack.back().loopStart = loopStart;
+    // skip body on first entry, jump straight to condition at bottom
+    int initialJump = emitJump(OP_JUMP);
 
-    int exitJump = emitJump(OP_FOR_ITERATE);
+    int bodyStart = currentChunk()->count;
+    current->loopStack.push_back({bodyStart, current->scopeDepth, {}});
+    current->loopStack.back().loopStart = bodyStart;
+
     statement();
-    emitLoop(loopStart);
-    patchJump(exitJump);
+
+    // condition lives here — patch initial jump to this point
+    patchJump(initialJump);
+
+    // OP_FOR_LOOP: check + loop back to bodyStart in one dispatch
+    int loopback = currentChunk()->count - bodyStart + 4; // +4 = opcode + 3 offset bytes
+    emitByte(OP_FOR_LOOP);
+    emitBytes({
+        (uint8_t)((loopback >> 16) & 0xFF),
+        (uint8_t)((loopback >> 8)  & 0xFF),
+        (uint8_t)( loopback        & 0xFF)
+    });
 
     for (int jump : current->loopStack.back().breakJumps) patchJump(jump);
     current->loopStack.pop_back();
