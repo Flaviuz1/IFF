@@ -3,7 +3,6 @@
 #include <cmath>
 #include <ctime>
 #include <cfloat>
-#include <experimental/random>
 #include <cstring>
 
 // @section: IO
@@ -151,9 +150,10 @@ Value seedNative(int argCount, Value* args) {
 }
 
 Value randominNative(int argCount, Value* args) {
-    int u = AS_NUMBER(args[0]), d = AS_NUMBER(args[1]);
-    if (u > d) {int a = u; u = d; d = a;}
-    return NUMBER_VAL((double)std::experimental::randint(u, d));
+    int lo = (int)AS_NUMBER(args[0]);
+    int hi = (int)AS_NUMBER(args[1]);
+    if (lo > hi) { int tmp = lo; lo = hi; hi = tmp; }
+    return NUMBER_VAL((double)(lo + rand() % (hi - lo + 1)));
 }
 // @endsection
 //arrays
