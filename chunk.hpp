@@ -5,69 +5,59 @@
 
 enum OpCode
 {
-    OP_RETURN,
-    // Constants
-    OP_CONSTANT,
-    OP_CONSTANT_BIG,
-    // Literals
-    OP_NULL,
-    OP_TRUE,
-    OP_FALSE,
-    // Arithmetic
-    OP_NEGATE,
-    OP_ADD,
-    OP_SUBTRACT,
-    OP_MULTIPLY,
-    OP_DIVIDE,
-    OP_MODULO,
-    OP_POWER,
-    OP_INCREMENT,
-    OP_DECREMENT,
-    // Bitwise
-    OP_SHIFT_LEFT,
-    OP_SHIFT_RIGHT,
-    OP_BITWISE_AND,
-    OP_BITWISE_OR,
-    OP_BITWISE_XOR,
-    OP_BITWISE_NOT,
-    // Comparison
-    OP_EQUAL_EQUAL,
-    OP_BANG_EQUAL,
-    OP_GREATER,
-    OP_GREATER_EQUAL,
-    OP_LESS,
-    OP_LESS_EQUAL,
-    OP_IS,
-    // Logical
-    OP_NOT,
-    OP_AND,
-    OP_OR,
-    // Variables and so
-    OP_DEFINE_GLOBAL,
-    OP_SET_GLOBAL,
-    OP_GET_GLOBAL,
-    OP_DEFINE_GLOBAL_BIG,
-    OP_SET_GLOBAL_BIG,
-    OP_GET_GLOBAL_BIG,
-    OP_GET_LOCAL,
-    OP_GET_LOCAL_BIG,
-    OP_SET_LOCAL,
-    OP_SET_LOCAL_BIG,
-    OP_CONST, OP_NOT_CONST,
-    // Jumps
-    OP_JUMP_IF_FALSE,
-    OP_JUMP,
-    OP_LOOP,
-    // For loops
-    OP_RANGE,
-    OP_BY,
-    OP_FOR_ITERATE,
-    // Funcions
-    OP_CALL,
-    // Others
-    OP_POP,
-    OP_DUP,
-    OP_STRINGIFY
+    OP_RETURN,           // 0
+    OP_CONSTANT,         // 1
+    OP_CONSTANT_BIG,     // 2
+    OP_NULL,             // 3
+    OP_TRUE,             // 4
+    OP_FALSE,            // 5
+    OP_NEGATE,           // 6
+    OP_ADD,              // 7
+    OP_SUBTRACT,         // 8
+    OP_MULTIPLY,         // 9
+    OP_DIVIDE,           // 10
+    OP_MODULO,           // 11
+    OP_POWER,            // 12
+    OP_INCREMENT,        // 13
+    OP_DECREMENT,        // 14
+    OP_SHIFT_LEFT,       // 15
+    OP_SHIFT_RIGHT,      // 16
+    OP_BITWISE_AND,      // 17
+    OP_BITWISE_OR,       // 18
+    OP_BITWISE_XOR,      // 19
+    OP_BITWISE_NOT,      // 20
+    OP_EQUAL_EQUAL,      // 21
+    OP_BANG_EQUAL,       // 22
+    OP_GREATER,          // 23
+    OP_GREATER_EQUAL,    // 24
+    OP_LESS,             // 25
+    OP_LESS_EQUAL,       // 26
+    OP_IS,               // 27
+    OP_NOT,              // 28
+    OP_AND,              // 29
+    OP_OR,               // 30
+    OP_DEFINE_GLOBAL,    // 31
+    OP_SET_GLOBAL,       // 32
+    OP_GET_GLOBAL,       // 33
+    OP_DEFINE_GLOBAL_BIG,// 34
+    OP_SET_GLOBAL_BIG,   // 35
+    OP_GET_GLOBAL_BIG,   // 36
+    OP_GET_LOCAL,        // 37
+    OP_GET_LOCAL_BIG,    // 38
+    OP_SET_LOCAL,        // 39
+    OP_SET_LOCAL_BIG,    // 40
+    OP_CONST,            // 41
+    OP_NOT_CONST,        // 42
+    OP_JUMP_IF_FALSE,    // 43
+    OP_JUMP,             // 44
+    OP_LOOP,             // 45
+    OP_RANGE,            // 46
+    OP_BY,               // 47
+    OP_FOR_ITERATE,      // 48
+    OP_CALL,             // 49
+    OP_POP,              // 50
+    OP_DUP,              // 51
+    OP_STRINGIFY,        // 52
 };
 
 struct Chunk

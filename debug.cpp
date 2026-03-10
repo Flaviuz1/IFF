@@ -155,6 +155,8 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_BITWISE_NOT", offset);
     case OP_STRINGIFY:
         return simpleInstruction("OP_STRINGIFY", offset);
+    case OP_DEFINE_GLOBAL:
+        return defineGlobalInstruction("OP_DEFINE_GLOBAL", chunk, offset);
     case OP_DEFINE_GLOBAL_BIG: 
         return defineGlobalBigInstruction("OP_DEFINE_GLOBAL_BIG",  chunk, offset);
     case OP_GET_GLOBAL:        
@@ -185,6 +187,12 @@ int disassembleInstruction(Chunk *chunk, int offset)
         return simpleInstruction("OP_DUP", offset);
     case OP_CALL:
         return constantInstruction("OP_CALL", chunk, offset);
+    case OP_RANGE:
+        return simpleInstruction("OP_RANGE", offset);
+    case OP_BY:
+        return simpleInstruction("OP_BY", offset);
+    case OP_FOR_ITERATE:
+        return jumpInstruction("OP_FOR_ITERATE", 1, chunk, offset);
     default:
         printf("Unknown opcode %d\n", instruction);
         return offset + 1;

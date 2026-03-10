@@ -79,6 +79,11 @@ struct ParseRule {
 Parser    parser;
 Compiler* current = nullptr;
 
+// Global index table — maps name -> flat array index in vm.globals
+// Persists across compiles so the same name always gets the same slot
+static std::unordered_map<std::string, int> globalIndex;
+static int globalCount = 0;
+
 static void        expression();
 static void        statement();
 static void        declaration();
@@ -112,7 +117,7 @@ static void initCompiler(Compiler* compiler, FunctionType type) {
     compiler->loopStack.clear();
     current = compiler;
 
-    if(type != TYPE_SCRIPT){
+    if (type != TYPE_SCRIPT) {
         current->function->name = copyString(parser.previous.start, parser.previous.length);
     }
 
@@ -204,7 +209,8 @@ static void emitConstant(Value value) {
     emitBytes(makeConstant(value));
 }
 
-static void emitGlobalOp(uint8_t smallOp, uint8_t bigOp, int index) {
+// Used for both locals AND globals — locals use slot index, globals use globalIndex
+static void emitIndexOp(uint8_t smallOp, uint8_t bigOp, int index) {
     if (index > UINT8_MAX) {
         emitBytes({bigOp,
             (uint8_t)((index >> 16) & 0xFF),
@@ -216,6 +222,14 @@ static void emitGlobalOp(uint8_t smallOp, uint8_t bigOp, int index) {
     }
 }
 
+int resolveGlobal(const std::string& name) {
+    auto it = globalIndex.find(name);
+    if (it != globalIndex.end()) return it->second;
+    int idx = globalCount++;
+    globalIndex[name] = idx;
+    return idx;
+}
+
 static int emitJump(uint8_t instruction) {
     emitBytes({instruction, 0xff, 0xff, 0xff});
     return currentChunk()->count - 3;
@@ -223,11 +237,9 @@ static int emitJump(uint8_t instruction) {
 
 static void patchJump(int offset) {
     int jump = currentChunk()->count - offset - 3;
-
     if (jump > 0xFFFFFF) {
         error("Jump is too large, if you ever see this pop up what are you doing man...");
     }
-
     currentChunk()->code[offset]     = (uint8_t)((jump >> 16) & 0xFF);
     currentChunk()->code[offset + 1] = (uint8_t)((jump >> 8)  & 0xFF);
     currentChunk()->code[offset + 2] = (uint8_t)( jump        & 0xFF);
@@ -235,12 +247,10 @@ static void patchJump(int offset) {
 
 static void emitLoop(int loopStart) {
     emitByte(OP_LOOP);
-
     int offset = currentChunk()->count - loopStart + 3;
     if (offset > 0xFFFFFF) {
         error("Jump is too large, if you ever see this pop up what are you doing man...");
     }
-
     emitBytes({
         (uint8_t)((offset >> 16) & 0xFF),
         (uint8_t)((offset >> 8)  & 0xFF),
@@ -259,7 +269,7 @@ static ObjFunction* endCompiler() {
     emitReturn();
     ObjFunction* function = current->function;
 #ifdef DEBUG_PRINT_CODE
-    if (!parser.hadError) disassembleChunk(currentChunk(), function->name != nullptr? function->name->stringValue.c_str() : "<script>");
+    if (!parser.hadError) disassembleChunk(currentChunk(), function->name != nullptr ? function->name->stringValue.c_str() : "<script>");
 #endif
     current = current->enclosing;
     return function;
@@ -290,16 +300,14 @@ static void declareLocal(Token name, bool con) {
 
 static uint8_t argumentList() {
     uint8_t argCount = 0;
-    if(!check(TOKEN_RIGHT_PAREN)) {
+    if (!check(TOKEN_RIGHT_PAREN)) {
         do {
             expression();
-            if (argCount == 255) {
-                error("Cannot exceed 255 arguments.");
-            }
+            if (argCount == 255) error("Cannot exceed 255 arguments.");
             argCount++;
-        } while(match(TOKEN_COMMA));
+        } while (match(TOKEN_COMMA));
     }
-    consume(TOKEN_RIGHT_PAREN, "Expect ')' to close fuction.");
+    consume(TOKEN_RIGHT_PAREN, "Expect ')' to close function.");
     return argCount;
 }
 
@@ -414,13 +422,11 @@ static void call(bool canAssign) {
 
 static void range_(bool canAssign) {
     parsePrecedence((Precedence)(PREC_RANGE + 1));
-
     if (match(TOKEN_BY)) {
         expression();
     } else {
         emitConstant(NUMBER_VAL(1.0));
     }
-
     emitByte(OP_RANGE);
 }
 
@@ -524,23 +530,20 @@ static void string(bool canAssign) {
 static void variable(bool canAssign) {
     Token name = parser.previous;
 
-    std::pair<int, bool> localIdx_conState = resolveLocal(&name);
-    bool isLocal = (localIdx_conState.first != -1);
+    auto [localSlot, localIsConst] = resolveLocal(&name);
+    bool isLocal = (localSlot != -1);
+
+    // For globals, resolve to a flat integer index — no string lookup at runtime
+    int globalSlot = isLocal ? -1 : resolveGlobal(std::string(name.start, name.length));
 
     auto emitGet = [&]() {
-        if (isLocal) emitGlobalOp(OP_GET_LOCAL, OP_GET_LOCAL_BIG, localIdx_conState.first);
-        else {
-            int nc = addConstant(currentChunk(), OBJ_VAL(copyString(name.start, name.length)));
-            emitGlobalOp(OP_GET_GLOBAL, OP_GET_GLOBAL_BIG, nc);
-        }
+        if (isLocal) emitIndexOp(OP_GET_LOCAL, OP_GET_LOCAL_BIG, localSlot);
+        else         emitIndexOp(OP_GET_GLOBAL, OP_GET_GLOBAL_BIG, globalSlot);
     };
     auto emitSet = [&]() {
-        if (localIdx_conState.second) { error("Cannot assign a value to a constant."); return; }
-        if (isLocal) emitGlobalOp(OP_SET_LOCAL, OP_SET_LOCAL_BIG, localIdx_conState.first);
-        else {
-            int nc = addConstant(currentChunk(), OBJ_VAL(copyString(name.start, name.length)));
-            emitGlobalOp(OP_SET_GLOBAL, OP_SET_GLOBAL_BIG, nc);
-        }
+        if (localIsConst) { error("Cannot assign a value to a constant."); return; }
+        if (isLocal) emitIndexOp(OP_SET_LOCAL, OP_SET_LOCAL_BIG, localSlot);
+        else         emitIndexOp(OP_SET_GLOBAL, OP_SET_GLOBAL_BIG, globalSlot);
     };
 
     struct CompoundOp { TokenType token; uint8_t op; };
@@ -558,8 +561,7 @@ static void variable(bool canAssign) {
         {TOKEN_SHIFT_RIGHT_EQUAL, OP_SHIFT_RIGHT},
     };
 
-    if (localIdx_conState.second) {
-        // still need to consume ++ -- etc. to avoid parser confusion
+    if (localIsConst) {
         if (match(TOKEN_PLUS_PLUS) || match(TOKEN_MINUS_MINUS)) {
             error("Cannot change the value of a constant.");
             return;
@@ -606,15 +608,11 @@ static void function(FunctionType type) {
     if (!check(TOKEN_RIGHT_PAREN)) {
         do {
             current->function->arity++;
-            if (current->function->arity > 255) {
-                error("Can't have more than 255 parameters.");
-            }
-
+            if (current->function->arity > 255) error("Can't have more than 255 parameters.");
             bool isConst = match(TOKEN_CON);
             if (!isConst) match(TOKEN_VAR);
             consume(TOKEN_IDENTIFIER, "Expect parameter name.");
             declareLocal(parser.previous, isConst);
-
         } while (match(TOKEN_COMMA));
     }
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after parameters.");
@@ -664,9 +662,9 @@ static void varDeclaration(bool isConst) {
         return;
     }
 
-    int nameConstant = addConstant(currentChunk(),
-        OBJ_VAL(copyString(name.start, name.length)));
-    emitGlobalOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, nameConstant);
+    // Global: emit integer index directly, no string constant
+    int idx = resolveGlobal(std::string(name.start, name.length));
+    emitIndexOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, idx);
     emitByte(isConst ? OP_CONST : OP_NOT_CONST);
 }
 
@@ -678,10 +676,10 @@ static void funcDeclaration() {
         function(TYPE_FUNCTION);
         declareLocal(name, false);
     } else {
-        int nameConstant = addConstant(currentChunk(),
-            OBJ_VAL(copyString(name.start, name.length)));
+        // Global: emit integer index directly, no string constant
+        int idx = resolveGlobal(std::string(name.start, name.length));
         function(TYPE_FUNCTION);
-        emitGlobalOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, nameConstant);
+        emitIndexOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, idx);
         emitByte(OP_NOT_CONST);
     }
 }
@@ -702,7 +700,6 @@ static void ifStatement() {
     statement();
 
     int elseJump = emitJump(OP_JUMP);
-
     patchJump(thenJump);
     emitByte(OP_POP);
 
@@ -723,7 +720,6 @@ static void whileStatement() {
     statement();
 
     emitLoop(loopStart);
-
     patchJump(exitJump);
     emitByte(OP_POP);
 
@@ -736,28 +732,26 @@ static void forStatement() {
     consume(TOKEN_LEFT_PAREN, "Expect '(' after 'for'.");
 
     if (match(TOKEN_CON)) error("Cannot make the iterable a constant.");
-    match(TOKEN_VAR);  // optional var
+    match(TOKEN_VAR);
     consume(TOKEN_IDENTIFIER, "Expect loop variable name.");
     Token loopVar = parser.previous;
 
     consume(TOKEN_IN, "Expect 'in' after loop variable.");
 
     expression();
-    declareLocal(syntheticToken("__range__"), false);
-    emitByte(OP_NULL);
-    declareLocal(loopVar, false);
+    declareLocal(syntheticToken("__end__"),  false);
+    declareLocal(syntheticToken("__step__"), false);
+    declareLocal(syntheticToken("__next__"), false);
+    declareLocal(loopVar,                    false);
 
     consume(TOKEN_RIGHT_PAREN, "Expect ')' after for clauses.");
 
     current->loopStack.push_back({0, current->scopeDepth, {}});
-
     int loopStart = currentChunk()->count;
     current->loopStack.back().loopStart = loopStart;
 
     int exitJump = emitJump(OP_FOR_ITERATE);
-
     statement();
-
     emitLoop(loopStart);
     patchJump(exitJump);
 
@@ -768,10 +762,7 @@ static void forStatement() {
 }
 
 static void breakStatement() {
-    if (current->loopStack.empty()) {
-        error("Cannot use 'break' outside of a loop.");
-        return;
-    }
+    if (current->loopStack.empty()) { error("Cannot use 'break' outside of a loop."); return; }
     consume(TOKEN_SEMICOLON, "Expect ';' after 'break'.");
     emitPopLocalsToDepth(current->loopStack.back().scopeDepth);
     int jump = emitJump(OP_JUMP);
@@ -779,10 +770,7 @@ static void breakStatement() {
 }
 
 static void continueStatement() {
-    if (current->loopStack.empty()) {
-        error("Cannot use 'continue' outside of a loop.");
-        return;
-    }
+    if (current->loopStack.empty()) { error("Cannot use 'continue' outside of a loop."); return; }
     consume(TOKEN_SEMICOLON, "Expect ';' after 'continue'.");
     emitPopLocalsToDepth(current->loopStack.back().scopeDepth);
     emitLoop(current->loopStack.back().loopStart);
@@ -806,9 +794,7 @@ static void matchStatement() {
         int nextJump = emitJump(OP_JUMP_IF_FALSE);
         emitByte(OP_POP);
         emitByte(OP_POP);
-
         statement();
-
         endJumps.push_back(emitJump(OP_JUMP));
         patchJump(nextJump);
         emitByte(OP_POP);
@@ -827,9 +813,7 @@ static void matchStatement() {
 }
 
 static void returnStatement() {
-    if (current->type == TYPE_SCRIPT) {
-        error("Cannot return from top-level code.");
-    }
+    if (current->type == TYPE_SCRIPT) error("Cannot return from top-level code.");
     if (match(TOKEN_SEMICOLON)) {
         emitReturn();
     } else {
@@ -845,7 +829,7 @@ static void synchronize() {
         if (parser.previous.type == TOKEN_SEMICOLON) return;
         switch (parser.current.type) {
             case TOKEN_CLASS: case TOKEN_FUNC:  case TOKEN_VAR:  case TOKEN_CON:
-            case TOKEN_FOR:   case TOKEN_IF:    case TOKEN_WHILE:  case TOKEN_RETURN:
+            case TOKEN_FOR:   case TOKEN_IF:    case TOKEN_WHILE: case TOKEN_RETURN:
                 return;
             default: break;
         }
@@ -854,22 +838,22 @@ static void synchronize() {
 }
 
 static void statement() {
-    if      (match(TOKEN_IF))                ifStatement();
-    else if (match(TOKEN_WHILE))             whileStatement();
-    else if (match(TOKEN_FOR))               forStatement();
-    else if (match(TOKEN_BREAK))             breakStatement();
-    else if (match(TOKEN_CONTINUE))          continueStatement();
-    else if (match(TOKEN_MATCH))             matchStatement();
-    else if (match(TOKEN_RETURN))            returnStatement();
-    else if (match(TOKEN_LEFT_BRACE)) {      beginScope(); block(); endScope(); }
-    else                                     expressionStatement();
+    if      (match(TOKEN_IF))         ifStatement();
+    else if (match(TOKEN_WHILE))      whileStatement();
+    else if (match(TOKEN_FOR))        forStatement();
+    else if (match(TOKEN_BREAK))      breakStatement();
+    else if (match(TOKEN_CONTINUE))   continueStatement();
+    else if (match(TOKEN_MATCH))      matchStatement();
+    else if (match(TOKEN_RETURN))     returnStatement();
+    else if (match(TOKEN_LEFT_BRACE)) { beginScope(); block(); endScope(); }
+    else                              expressionStatement();
 }
 
 static void declaration() {
-    if      (match(TOKEN_VAR)) varDeclaration(false);
-    else if (match(TOKEN_CON)) varDeclaration(true);
-    else if (match(TOKEN_FUNC))funcDeclaration();
-    else                       statement();
+    if      (match(TOKEN_VAR))  varDeclaration(false);
+    else if (match(TOKEN_CON))  varDeclaration(true);
+    else if (match(TOKEN_FUNC)) funcDeclaration();
+    else                        statement();
     if (parser.panicMode) synchronize();
 }
 

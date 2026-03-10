@@ -3,7 +3,7 @@
 #include "chunk.hpp"
 #include "value.hpp"
 #include "object.hpp"
-#include <unordered_map>
+#include <vector>
 #define FRAME_MAX 512
 #define UINT8_COUNT (UINT8_MAX + 1)
 #define STACK_MAX (FRAME_MAX * UINT8_COUNT)
@@ -26,7 +26,8 @@ struct VM {
     Value stack[STACK_MAX];
     Value* stackTop;
     Obj* objects;
-    std::unordered_map<std::string, varAtt> globals;
+    std::vector<varAtt> globals;
+    std::vector<std::string> globalNames;
 };
 
 enum InterpretResult{

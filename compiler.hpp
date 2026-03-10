@@ -5,3 +5,4 @@
 #include "vm.hpp"
 
 ObjFunction* compile(const char* source);
+int resolveGlobal(const std::string& name);

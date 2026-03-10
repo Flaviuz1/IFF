@@ -85,17 +85,25 @@ static bool isFalsey(Value value) {
 
 static void defineNative(const char* name, NativeFn function, int arity = -1) {
     ObjNative* native = newNative(function, arity, name);
-    vm.globals[std::string(name)] = {OBJ_VAL(native), false};
+    int idx = resolveGlobal(std::string(name));
+    if (idx >= (int)vm.globals.size()) vm.globals.resize(idx + 1);
+    vm.globals[idx] = {OBJ_VAL(native), false};
 }
 
 void initVM(){
     resetStack();
+    vm.objects = nullptr;
     srand((unsigned int)time(nullptr));
+    auto defineGlobal = [&](const char* name, Value value, bool isConst) {
+        int idx = resolveGlobal(std::string(name));
+        if (idx >= (int)vm.globals.size()) vm.globals.resize(idx + 1);
+        vm.globals[idx] = {value, isConst};
+    };
     //constants
-    vm.globals["MATH_PI"]  = varAtt{NUMBER_VAL(M_PI),    true};
-    vm.globals["MATH_E"]   = varAtt{NUMBER_VAL(M_E),     true};
-    vm.globals["MATH_INF"] = varAtt{NUMBER_VAL(INFINITY), true};
-    vm.globals["MATH_NAN"] = varAtt{NUMBER_VAL(NAN),      true};
+    defineGlobal("MATH_PI",  NUMBER_VAL(M_PI),    true);
+    defineGlobal("MATH_E",   NUMBER_VAL(M_E),     true);
+    defineGlobal("MATH_INF", NUMBER_VAL(INFINITY), true);
+    defineGlobal("MATH_NAN", NUMBER_VAL(NAN),      true);
     //io
     defineNative("clock", clockNative, 0);
     defineNative("print", printNative, 1);
@@ -158,7 +166,6 @@ void initVM(){
     defineNative("isFunc",   isFuncNative,   1);
     defineNative("isNaN",    isNaNNative,    1);
     defineNative("isInf",    isInfNative,    1);
-    vm.objects = nullptr;
 }
 
 void freeVM(){
@@ -228,8 +235,71 @@ static bool callValue(Value callee, int argCount) {
 
 static InterpretResult run() {
     CallFrame* frame = &vm.frames[vm.frameCount - 1];
+    Value* stackTop = vm.stackTop;
 
-    //frame->ip, frame->function->chunk FROM vm.ip, vm.chunk
+    #define PUSH(v)   (*stackTop++ = (v))
+    #define POP()     (*(--stackTop))
+    #define PEEK(d)   (stackTop[-1-(d)])
+    #define SYNC()    (vm.stackTop = stackTop)
+    #define RELOAD()  (stackTop = vm.stackTop)
+
+    static void* table[] = {
+        &&L_OP_RETURN,           // 0
+        &&L_OP_CONSTANT,         // 1
+        &&L_OP_CONSTANT_BIG,     // 2
+        &&L_OP_NULL,             // 3
+        &&L_OP_TRUE,             // 4
+        &&L_OP_FALSE,            // 5
+        &&L_OP_NEGATE,           // 6
+        &&L_OP_ADD,              // 7
+        &&L_OP_SUBTRACT,         // 8
+        &&L_OP_MULTIPLY,         // 9
+        &&L_OP_DIVIDE,           // 10
+        &&L_OP_MODULO,           // 11
+        &&L_OP_POWER,            // 12
+        &&L_OP_INCREMENT,        // 13
+        &&L_OP_DECREMENT,        // 14
+        &&L_OP_SHIFT_LEFT,       // 15
+        &&L_OP_SHIFT_RIGHT,      // 16
+        &&L_OP_BITWISE_AND,      // 17
+        &&L_OP_BITWISE_OR,       // 18
+        &&L_OP_BITWISE_XOR,      // 19
+        &&L_OP_BITWISE_NOT,      // 20
+        &&L_OP_EQUAL_EQUAL,      // 21
+        &&L_OP_BANG_EQUAL,       // 22
+        &&L_OP_GREATER,          // 23
+        &&L_OP_GREATER_EQUAL,    // 24
+        &&L_OP_LESS,             // 25
+        &&L_OP_LESS_EQUAL,       // 26
+        &&L_OP_IS,               // 27
+        &&L_OP_NOT,              // 28
+        &&L_OP_AND,              // 29
+        &&L_OP_OR,               // 30
+        &&L_OP_DEFINE_GLOBAL,    // 31
+        &&L_OP_SET_GLOBAL,       // 32
+        &&L_OP_GET_GLOBAL,       // 33
+        &&L_OP_DEFINE_GLOBAL_BIG,// 34
+        &&L_OP_SET_GLOBAL_BIG,   // 35
+        &&L_OP_GET_GLOBAL_BIG,   // 36
+        &&L_OP_GET_LOCAL,        // 37
+        &&L_OP_GET_LOCAL_BIG,    // 38
+        &&L_OP_SET_LOCAL,        // 39
+        &&L_OP_SET_LOCAL_BIG,    // 40
+        &&L_OP_CONST,            // 41
+        &&L_OP_NOT_CONST,        // 42
+        &&L_OP_JUMP_IF_FALSE,    // 43
+        &&L_OP_JUMP,             // 44
+        &&L_OP_LOOP,             // 45
+        &&L_OP_RANGE,            // 46
+        &&L_OP_BY,               // 47
+        &&L_OP_FOR_ITERATE,      // 48
+        &&L_OP_CALL,             // 49
+        &&L_OP_POP,              // 50
+        &&L_OP_DUP,              // 51
+        &&L_OP_STRINGIFY,        // 52
+    };
+
+    // @section: Macros 
     #define READ_BYTE()         (*frame->ip++)
     #define READ_CONSTANT()     (frame->function->chunk.constants.values[READ_BYTE()])
     #define READ_CONSTANT_BIG() \
@@ -245,314 +315,314 @@ static InterpretResult run() {
          ((uint32_t)(frame->ip[-2]) << 8)  | \
           (uint32_t)(frame->ip[-1]))
 
-    #define NEGATE(valueType)   (*(vm.stackTop - 1) = valueType(-AS_NUMBER(*(vm.stackTop - 1))))
-    #define BANG(valueType)     (*(vm.stackTop - 1) = valueType(isFalsey(*(vm.stackTop - 1))))
+    #define NEGATE(valueType)   (*(stackTop - 1) = valueType(-AS_NUMBER(*(stackTop - 1))))
+    #define BANG(valueType)     (*(stackTop - 1) = valueType(isFalsey(*(stackTop - 1))))
 
     #define CREMENT(valueType, delta) do { \
-        if (!IS_NUMBER(peek(0))) { \
+        Value _a = *(stackTop - 1); \
+        if (!IS_NUMBER(_a)) { \
             runtimeError("Operand must be a number."); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
-        *(vm.stackTop - 1) = valueType(AS_NUMBER(*(vm.stackTop - 1)) + delta); \
+        *(stackTop - 1) = valueType(AS_NUMBER(_a) + delta); \
     } while (false)
 
     #define BINARY_OP(valueType, op) do { \
-        if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
-            runtimeError("Operands must be numbers (or strings for +/*)"); \
+        Value _b = *(stackTop - 1); \
+        Value _a = *(stackTop - 2); \
+        if (!IS_NUMBER(_a) || !IS_NUMBER(_b)) { \
+            runtimeError("Operands must be numbers."); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
-        double b = AS_NUMBER(pop()); \
-        *(vm.stackTop - 1) = valueType(AS_NUMBER(*(vm.stackTop - 1)) op b); \
+        stackTop--; \
+        *(stackTop - 1) = valueType(AS_NUMBER(_a) op AS_NUMBER(_b)); \
     } while (false)
 
     #define EQUAL_CHECK(valueType, negate) do { \
-        Value b = pop(); \
-        *(vm.stackTop - 1) = valueType(negate valuesEqual(*(vm.stackTop - 1), b)); \
+        Value _b = *(stackTop - 1); \
+        stackTop--; \
+        *(stackTop - 1) = valueType(negate valuesEqual(*(stackTop - 1), _b)); \
     } while (false)
 
     #define MOD_POWER(valueType, op) do { \
-        if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
+        Value _b = *(stackTop - 1); \
+        Value _a = *(stackTop - 2); \
+        if (!IS_NUMBER(_a) || !IS_NUMBER(_b)) { \
             runtimeError("Operands must be numbers."); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
-        double b = AS_NUMBER(pop()); \
-        *(vm.stackTop - 1) = valueType(op(AS_NUMBER(*(vm.stackTop - 1)), b)); \
+        stackTop--; \
+        *(stackTop - 1) = valueType(op(AS_NUMBER(_a), AS_NUMBER(_b))); \
     } while (false)
 
     #define BITWISE_OP(valueType, op) do { \
-        if (!IS_NUMBER(peek(0)) || !IS_NUMBER(peek(1))) { \
+        Value _b = *(stackTop - 1); \
+        Value _a = *(stackTop - 2); \
+        if (!IS_NUMBER(_a) || !IS_NUMBER(_b)) { \
             runtimeError("Operands must be numbers."); \
             return INTERPRET_RUNTIME_ERROR; \
         } \
-        int b = (int)AS_NUMBER(pop()); \
-        *(vm.stackTop - 1) = valueType((double)((int)AS_NUMBER(*(vm.stackTop - 1)) op b)); \
+        stackTop--; \
+        *(stackTop - 1) = valueType((double)((int)AS_NUMBER(_a) op (int)AS_NUMBER(_b))); \
     } while (false)
 
     #define STRING_ADD() do { \
-        Value _b = pop(); \
-        std::string result = valueToString(*(vm.stackTop - 1)) + valueToString(_b); \
-        *(vm.stackTop - 1) = OBJ_VAL(allocateString(result)); \
+        Value _b = *(stackTop - 1); \
+        stackTop--; \
+        std::string result = valueToString(*(stackTop - 1)) + valueToString(_b); \
+        *(stackTop - 1) = OBJ_VAL(allocateString(result)); \
     } while (false)
 
     #define STRING_MULTIPLY() do { \
-        if (IS_NUMBER(peek(0))) { \
-            int n = std::max(0, (int)AS_NUMBER(pop())); \
-            std::string result; \
-            result.reserve(AS_OBJ_TYPE(*(vm.stackTop-1), ObjString)->stringValue.size() * n); \
-            for (int i = 0; i < n; i++) result += AS_OBJ_TYPE(*(vm.stackTop-1), ObjString)->stringValue; \
-            *(vm.stackTop - 1) = OBJ_VAL(allocateString(result)); \
-        } else { \
-            std::string s = AS_OBJ_TYPE(pop(), ObjString)->stringValue; \
-            int n = std::max(0, (int)AS_NUMBER(*(vm.stackTop - 1))); \
-            std::string result; \
-            result.reserve(s.size() * n); \
-            for (int i = 0; i < n; i++) result += s; \
-            *(vm.stackTop - 1) = OBJ_VAL(allocateString(result)); \
-        } \
+        Value _top = *(stackTop - 1); \
+        Value _bot = *(stackTop - 2); \
+        stackTop--; \
+        std::string s   = IS_OBJ_TYPE(_bot, OBJ_STRING) ? AS_OBJ_TYPE(_bot, ObjString)->stringValue \
+                                                        : AS_OBJ_TYPE(_top, ObjString)->stringValue; \
+        int n = std::max(0, (int)AS_NUMBER(IS_NUMBER(_top) ? _top : _bot)); \
+        std::string result; \
+        result.reserve(s.size() * n); \
+        for (int i = 0; i < n; i++) result += s; \
+        *(stackTop - 1) = OBJ_VAL(allocateString(result)); \
     } while (false)
 
-    for (;;) {
-        #ifdef DEBUG_TRACE_EXECUTION
-            printf("             ");
-            for (Value* slot = vm.stack; slot < vm.stackTop; slot++) {
-                printf("[ ");
-                printValue(*slot);
-                printf(" ]");
-            }
-            printf("\n");
-            disassembleInstruction(&frame->function->chunk,
-                (int)(frame->ip - frame->function->chunk.code));
-        #endif
+    #ifdef DEBUG_TRACE_EXECUTION
+        #define DISPATCH() \
+            do { \
+                printf("          "); \
+                for (Value* slot = vm.stack; slot < stackTop; slot++) { printf("[ "); printValue(*slot); printf(" ]"); } \
+                printf("\n"); \
+                disassembleInstruction(&frame->function->chunk, (int)(frame->ip - frame->function->chunk.code)); \
+                goto *table[READ_BYTE()]; \
+            } while(0)
+    #else
+        #define DISPATCH() goto *table[READ_BYTE()]
+    #endif
+    
+    DISPATCH();
+    // @endsection
 
-        uint8_t instruction;
-        switch (instruction = READ_BYTE()) {
-
-            case OP_CONSTANT:     { push(READ_CONSTANT());            break; }
-            case OP_CONSTANT_BIG: { push(READ_CONSTANT_BIG());        break; }
-            case OP_ADD: {
-                if (IS_OBJ_TYPE(peek(0), OBJ_STRING) || IS_OBJ_TYPE(peek(1), OBJ_STRING)) STRING_ADD();
-                else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) BINARY_OP(NUMBER_VAL, +);
-                else { runtimeError("Operands must be two numbers or at least one string."); return INTERPRET_RUNTIME_ERROR; }
-                break;
-            }
-            case OP_SUBTRACT:     { BINARY_OP(NUMBER_VAL, -);          break; }
-            case OP_MULTIPLY: {
-                if (IS_OBJ_TYPE(peek(0), OBJ_STRING) && IS_NUMBER(peek(1))) STRING_MULTIPLY();
-                else if (IS_NUMBER(peek(0)) && IS_OBJ_TYPE(peek(1), OBJ_STRING)) STRING_MULTIPLY();
-                else BINARY_OP(NUMBER_VAL, *);
-                break;
-            }
-            case OP_DIVIDE:       { BINARY_OP(NUMBER_VAL, /);          break; }
-            case OP_POWER:        { MOD_POWER(NUMBER_VAL, pow);        break; }
-            case OP_MODULO:       { MOD_POWER(NUMBER_VAL, fmod);       break; }
-            case OP_INCREMENT:    { CREMENT(NUMBER_VAL,  1);           break; }
-            case OP_DECREMENT:    { CREMENT(NUMBER_VAL, -1);           break; }
-            case OP_SHIFT_LEFT:   { BITWISE_OP(NUMBER_VAL, <<);        break; }
-            case OP_SHIFT_RIGHT:  { BITWISE_OP(NUMBER_VAL, >>);        break; }
-            case OP_BITWISE_AND:  { BITWISE_OP(NUMBER_VAL, &);         break; }
-            case OP_BITWISE_OR:   { BITWISE_OP(NUMBER_VAL, |);         break; }
-            case OP_BITWISE_XOR:  { BITWISE_OP(NUMBER_VAL, ^);         break; }
-            case OP_BITWISE_NOT: {
-                if (!IS_NUMBER(peek(0))) {
-                    runtimeError("Operand must be a number.");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                *(vm.stackTop - 1) = NUMBER_VAL((double)(~(int)AS_NUMBER(*(vm.stackTop - 1))));
-                break;
-            }
-            //unary / literals
-            case OP_NEGATE: {
-                if (!IS_NUMBER(peek(0))) {
-                    runtimeError("Operand must be a number.");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                NEGATE(NUMBER_VAL);
-                break;
-            }
-            case OP_NOT:          { BANG(BOOL_VAL);  break; }
-            case OP_TRUE:         { push(BOOL_VAL(true));  break; }
-            case OP_FALSE:        { push(BOOL_VAL(false)); break; }
-            case OP_NULL:         { push(NULL_VAL);        break; }
-            //comparison
-            case OP_GREATER:       { BINARY_OP(BOOL_VAL, >);  break; }
-            case OP_GREATER_EQUAL: { BINARY_OP(BOOL_VAL, >=); break; }
-            case OP_LESS:          { BINARY_OP(BOOL_VAL, <);  break; }
-            case OP_LESS_EQUAL:    { BINARY_OP(BOOL_VAL, <=); break; }
-            case OP_EQUAL_EQUAL:   { EQUAL_CHECK(BOOL_VAL,  ); break; }
-            case OP_BANG_EQUAL:    { EQUAL_CHECK(BOOL_VAL, !); break; }
-            case OP_IS: {
-                Value right = pop();
-                *(vm.stackTop - 1) = BOOL_VAL(sameType(*(vm.stackTop - 1), right));
-                break;
-            }
-            case OP_OR:  { break; }
-            case OP_AND: { break; }
-            //globals
-            case OP_DEFINE_GLOBAL: {
-                std::string name = AS_OBJ_TYPE(READ_CONSTANT(), ObjString)->stringValue;
-                bool isConst = (READ_BYTE() == OP_CONST);
-                vm.globals[name] = {pop(), isConst};
-                break;
-            }
-            case OP_GET_GLOBAL: {
-                std::string name = AS_OBJ_TYPE(READ_CONSTANT(), ObjString)->stringValue;
-                auto it = vm.globals.find(name);
-                if (it == vm.globals.end()) {
-                    runtimeError("Undefined variable '%s'.", name.c_str());
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                push(it->second.value);
-                break;
-            }
-            case OP_SET_GLOBAL: {
-                std::string name = AS_OBJ_TYPE(READ_CONSTANT(), ObjString)->stringValue;
-                auto it = vm.globals.find(name);
-                if (it == vm.globals.end()) {
-                    runtimeError("Undefined variable '%s'.", name.c_str());
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                if (it->second.isConst) {
-                    runtimeError("Cannot reassign value to a constant.");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                it->second.value = peek(0);
-                break;
-            }
-            case OP_DEFINE_GLOBAL_BIG: {
-                std::string name = AS_OBJ_TYPE(READ_CONSTANT_BIG(), ObjString)->stringValue;
-                bool isConst = (READ_BYTE() == OP_CONST);
-                vm.globals[name] = {pop(), isConst};
-                break;
-            }
-            case OP_GET_GLOBAL_BIG: {
-                std::string name = AS_OBJ_TYPE(READ_CONSTANT_BIG(), ObjString)->stringValue;
-                auto it = vm.globals.find(name);
-                if (it == vm.globals.end()) {
-                    runtimeError("Undefined variable '%s'.", name.c_str());
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                push(it->second.value);
-                break;
-            }
-            case OP_SET_GLOBAL_BIG: {
-                std::string name = AS_OBJ_TYPE(READ_CONSTANT_BIG(), ObjString)->stringValue;
-                auto it = vm.globals.find(name);
-                if (it == vm.globals.end()) {
-                    runtimeError("Undefined variable '%s'.", name.c_str());
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                if (it->second.isConst) {
-                    runtimeError("Cannot reassign value to a constant.");
-                    return INTERPRET_RUNTIME_ERROR;
-                }
-                it->second.value = peek(0);
-                break;
-            }
-            //locals
-            case OP_GET_LOCAL: {
-                uint8_t slot = READ_BYTE();
-                push(frame->slots[slot]);
-                break;
-            }
-            case OP_SET_LOCAL: {
-                uint8_t slot = READ_BYTE();
-                frame->slots[slot] = peek(0);
-                break;
-            }
-            case OP_GET_LOCAL_BIG: {
-                uint32_t slot  = (uint32_t)READ_BYTE() << 16;
-                         slot |= (uint32_t)READ_BYTE() << 8;
-                         slot |= (uint32_t)READ_BYTE();
-                push(frame->slots[slot]);
-                break;
-            }
-            case OP_SET_LOCAL_BIG: {
-                uint32_t slot  = (uint32_t)READ_BYTE() << 16;
-                         slot |= (uint32_t)READ_BYTE() << 8;
-                         slot |= (uint32_t)READ_BYTE();
-                frame->slots[slot] = peek(0);
-                break;
-            }
-            //ifs
-            case OP_JUMP: {
-                uint32_t offset = READ_24BITS();
-                frame->ip += offset;
-                break;
-            }
-            case OP_JUMP_IF_FALSE: {
-                uint32_t offset = READ_24BITS();
-                if (isFalsey(peek(0))) frame->ip += offset;
-                break;
-            }
-            case OP_LOOP: {
-                uint32_t offset = READ_24BITS();
-                frame->ip -= offset;
-                break;
-            }
-            //fors
-            case OP_RANGE: {
-                double step  = AS_NUMBER(pop());
-                double right = AS_NUMBER(pop());
-                double left  = AS_NUMBER(pop());
-                push(OBJ_VAL(allocateRange(left, right, step)));
-                break;
-            }
-            case OP_FOR_ITERATE: {
-                ObjRange* range = AS_OBJ_TYPE(peek(1), ObjRange);
-                double direction = range->right - range->left;
-                if (direction == 0 ||
-                    (direction < 0 && range->current <= range->right) ||
-                    (direction > 0 && range->current >= range->right)) {
-                    uint32_t offset = READ_24BITS();
-                    frame->ip += offset;
-                    break;
-                }
-                frame->ip += 3;
-                *(vm.stackTop - 1) = NUMBER_VAL(range->current);
-                range->current = range->left + (range->iterations * range->step);
-                range->iterations++;
-                break;
-            }
-            //functions
-            case OP_CALL: {
-                int argCount = READ_BYTE();
-                if(!callValue(peek(argCount), argCount)) return INTERPRET_RUNTIME_ERROR;
-                frame = &vm.frames[vm.frameCount - 1];
-                break;
-            }
-            //misc
-            case OP_STRINGIFY: {
-                if (!IS_OBJ_TYPE(peek(0), OBJ_STRING)) {
-                    *(vm.stackTop - 1) = OBJ_VAL(allocateString(valueToString(*(vm.stackTop - 1))));
-                }
-                break;
-            }
-            case OP_POP: { pop(); break; }
-            case OP_DUP: { push(peek(0)); break; }
-
-            //return
-            case OP_RETURN: {
-                Value result = pop();
-
-                vm.frameCount--;
-                if (vm.frameCount == 0) {
-                    pop();
-                    return INTERPRET_OK;
-                }
-
-                vm.stackTop = frame->slots;
-                push(result);
-
-                frame = &vm.frames[vm.frameCount - 1];
-                break;
-            }
-
-            default:
-                runtimeError("Unknown opcode %d.", instruction);
-                return INTERPRET_RUNTIME_ERROR;
-        }
+    // @section: Ops
+    L_OP_CONSTANT : {
+        PUSH(READ_CONSTANT());
+        DISPATCH();
     }
+    L_OP_CONSTANT_BIG: {
+        PUSH(READ_CONSTANT_BIG());
+        DISPATCH();
+    }
+    L_OP_ADD: {
+        Value b = PEEK(0);
+        Value a = PEEK(1);
+        if (IS_NUMBER(a) && IS_NUMBER(b)) {
+            *(stackTop - 2) = NUMBER_VAL(AS_NUMBER(a) + AS_NUMBER(b));
+            stackTop--;
+        } else if (IS_OBJ_TYPE(PEEK(0), OBJ_STRING) || IS_OBJ_TYPE(PEEK(1), OBJ_STRING)) {
+            STRING_ADD();
+        } else {
+            runtimeError("Operands must be numbers or strings.");
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        DISPATCH();
+    }
+    L_OP_SUBTRACT: {
+        BINARY_OP(NUMBER_VAL, -);
+        DISPATCH();
+    }
+    L_OP_MULTIPLY: {
+        if (IS_OBJ_TYPE(PEEK(0), OBJ_STRING) && IS_NUMBER(PEEK(1))) STRING_MULTIPLY();
+        else if (IS_NUMBER(PEEK(0)) && IS_OBJ_TYPE(PEEK(1), OBJ_STRING)) STRING_MULTIPLY();
+        else BINARY_OP(NUMBER_VAL, *);
+        DISPATCH();
+    }
+    L_OP_DIVIDE: {
+        BINARY_OP(NUMBER_VAL, /);
+        DISPATCH();
+    }
+    L_OP_POWER:        { MOD_POWER(NUMBER_VAL, pow);  DISPATCH(); }
+    L_OP_MODULO:       { MOD_POWER(NUMBER_VAL, fmod); DISPATCH(); }
+    L_OP_INCREMENT:    { CREMENT(NUMBER_VAL,  1);     DISPATCH(); }
+    L_OP_DECREMENT:    { CREMENT(NUMBER_VAL, -1);     DISPATCH(); }
+    L_OP_SHIFT_LEFT:   { BITWISE_OP(NUMBER_VAL, <<);  DISPATCH(); }
+    L_OP_SHIFT_RIGHT:  { BITWISE_OP(NUMBER_VAL, >>);  DISPATCH(); }
+    L_OP_BITWISE_AND:  { BITWISE_OP(NUMBER_VAL, &);   DISPATCH(); }
+    L_OP_BITWISE_OR:   { BITWISE_OP(NUMBER_VAL, |);   DISPATCH(); }
+    L_OP_BITWISE_XOR:  { BITWISE_OP(NUMBER_VAL, ^);   DISPATCH(); }
+    L_OP_BITWISE_NOT: {
+        if (!IS_NUMBER(PEEK(0))) {
+            runtimeError("Operand must be a number.");
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        *(stackTop - 1) = NUMBER_VAL((double)(~(int)AS_NUMBER(*(stackTop - 1))));
+        DISPATCH();
+    }
+    L_OP_NEGATE: {
+        if (!IS_NUMBER(PEEK(0))) {
+            runtimeError("Operand must be a number.");
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        NEGATE(NUMBER_VAL);
+        DISPATCH();
+    }
+    L_OP_NOT:          { BANG(BOOL_VAL);        DISPATCH(); }
+    L_OP_TRUE:         { PUSH(TRUE_VAL);        DISPATCH(); }
+    L_OP_FALSE:        { PUSH(FALSE_VAL);       DISPATCH(); }
+    L_OP_NULL:         { PUSH(NULL_VAL);        DISPATCH(); }
+    L_OP_GREATER:       { BINARY_OP(BOOL_VAL, >);  DISPATCH(); }
+    L_OP_GREATER_EQUAL: { BINARY_OP(BOOL_VAL, >=); DISPATCH(); }
+    L_OP_LESS:          { BINARY_OP(BOOL_VAL, <);  DISPATCH(); }
+    L_OP_LESS_EQUAL:    { BINARY_OP(BOOL_VAL, <=); DISPATCH(); }
+    L_OP_EQUAL_EQUAL:   { EQUAL_CHECK(BOOL_VAL,  ); DISPATCH(); }
+    L_OP_BANG_EQUAL:    { EQUAL_CHECK(BOOL_VAL, !); DISPATCH(); }
+    L_OP_IS: {
+        Value right = POP();
+        *(stackTop - 1) = BOOL_VAL(sameType(*(stackTop - 1), right));
+        DISPATCH();
+    }
+    L_OP_OR:  { DISPATCH(); }
+    L_OP_AND: { DISPATCH(); }
+    L_OP_DEFINE_GLOBAL: {
+        uint8_t idx = READ_BYTE();
+        bool isConst = (READ_BYTE() == OP_CONST);
+        if (idx >= vm.globals.size()) vm.globals.resize(idx + 1);
+        vm.globals[idx] = {POP(), isConst};
+        DISPATCH();
+    }
+    L_OP_GET_GLOBAL: {
+        uint8_t idx = READ_BYTE();
+        PUSH(vm.globals[idx].value);
+        DISPATCH();
+    }
+    L_OP_SET_GLOBAL: {
+        uint8_t idx = READ_BYTE();
+        if (vm.globals[idx].isConst) {
+            runtimeError("Cannot reassign value to a constant.");
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        vm.globals[idx].value = PEEK(0);
+        DISPATCH();
+    }
+    L_OP_DEFINE_GLOBAL_BIG: {
+        uint32_t idx = READ_24BITS();
+        bool isConst = (READ_BYTE() == OP_CONST);
+        if (idx >= vm.globals.size()) vm.globals.resize(idx + 1);
+        vm.globals[idx] = {POP(), isConst};
+        DISPATCH();
+    }
+    L_OP_GET_GLOBAL_BIG: {
+        uint32_t idx = READ_24BITS();
+        PUSH(vm.globals[idx].value);
+        DISPATCH();
+    }
+    L_OP_SET_GLOBAL_BIG: {
+        uint32_t idx = READ_24BITS();
+        if (vm.globals[idx].isConst) {
+            runtimeError("Cannot reassign value to a constant.");
+            return INTERPRET_RUNTIME_ERROR;
+        }
+        vm.globals[idx].value = PEEK(0);
+        DISPATCH();
+    }
+    L_OP_GET_LOCAL: {
+        uint8_t slot = READ_BYTE();
+        PUSH(frame->slots[slot]);
+        DISPATCH();
+    }
+    L_OP_SET_LOCAL: {
+        uint8_t slot = READ_BYTE();
+        frame->slots[slot] = PEEK(0);
+        DISPATCH();
+    }
+    L_OP_GET_LOCAL_BIG: {
+        uint32_t slot  = (uint32_t)READ_BYTE() << 16;
+                 slot |= (uint32_t)READ_BYTE() << 8;
+                 slot |= (uint32_t)READ_BYTE();
+        PUSH(frame->slots[slot]);
+        DISPATCH();
+    }
+    L_OP_SET_LOCAL_BIG: {
+        uint32_t slot  = (uint32_t)READ_BYTE() << 16;
+                 slot |= (uint32_t)READ_BYTE() << 8;
+                 slot |= (uint32_t)READ_BYTE();
+        frame->slots[slot] = PEEK(0);
+        DISPATCH();
+    }
+    L_OP_CONST:     { DISPATCH(); }
+    L_OP_NOT_CONST: { DISPATCH(); }
+    L_OP_JUMP: {
+        uint32_t offset = READ_24BITS();
+        frame->ip += offset;
+        DISPATCH();
+    }
+    L_OP_JUMP_IF_FALSE: {
+        uint32_t offset = READ_24BITS();
+        if (isFalsey(PEEK(0))) frame->ip += offset;
+        DISPATCH();
+    }
+    L_OP_LOOP: {
+        uint32_t offset = READ_24BITS();
+        frame->ip -= offset;
+        DISPATCH();
+    }
+    L_OP_RANGE: {
+        double step  = AS_NUMBER(POP());
+        double right = AS_NUMBER(POP());
+        double left  = AS_NUMBER(POP());
+        PUSH(NUMBER_VAL(right));  // end
+        PUSH(NUMBER_VAL(step));   // step
+        PUSH(NUMBER_VAL(left));   // next
+        PUSH(NUMBER_VAL(left));   // i
+        DISPATCH();
+    }
+    L_OP_BY: { DISPATCH(); }
+    L_OP_FOR_ITERATE: {
+        double next = AS_NUMBER(*(stackTop - 2));
+        double step = AS_NUMBER(*(stackTop - 3));
+        double end  = AS_NUMBER(*(stackTop - 4));
 
+        bool done = (step > 0) ? (next >= end)
+                : (step < 0) ? (next <= end)
+                : true;
+
+        if (done) {
+            uint32_t offset = READ_24BITS();
+            frame->ip += offset;
+            DISPATCH();
+        }
+        frame->ip += 3;
+        *(stackTop - 1) = NUMBER_VAL(next);
+        *(stackTop - 2) = NUMBER_VAL(next + step);
+        DISPATCH();
+    }
+    L_OP_CALL: {
+        int argCount = READ_BYTE();
+        SYNC();
+        if (!callValue(PEEK(argCount), argCount)) return INTERPRET_RUNTIME_ERROR;
+        RELOAD();
+        frame = &vm.frames[vm.frameCount - 1];
+        DISPATCH();
+    }
+    L_OP_STRINGIFY: {
+        if (!IS_OBJ_TYPE(PEEK(0), OBJ_STRING)) {
+            *(stackTop - 1) = OBJ_VAL(allocateString(valueToString(*(stackTop - 1))));
+        }
+        DISPATCH();
+    }
+    L_OP_POP: { POP(); DISPATCH(); }
+    L_OP_DUP: { PUSH(PEEK(0)); DISPATCH(); }
+    L_OP_RETURN: {
+        Value result = POP();
+        vm.frameCount--;
+        if (vm.frameCount == 0) {
+            POP();
+            return INTERPRET_OK;
+        }
+        stackTop = frame->slots;
+        PUSH(result);
+        frame = &vm.frames[vm.frameCount - 1];
+        DISPATCH();
+    }
+    // @endsection
     #undef READ_BYTE
     #undef READ_CONSTANT
     #undef READ_CONSTANT_BIG
