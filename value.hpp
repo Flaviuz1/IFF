@@ -2,15 +2,9 @@
 
 #include "common.hpp"
 #include <string>
+#include <cstring>
 
 struct ObjFunction;
-
-enum ValueType {
-    VAL_BOOL,
-    VAL_NULL,
-    VAL_NUMBER,
-    VAL_OBJ,
-};
 
 enum ObjType {
     OBJ_STRING,
@@ -33,42 +27,37 @@ struct ObjString : Obj{
     std::string stringValue;
 };
 
-struct Value {
-    ValueType type;
-    union {
-        bool boolean;
-        double number;
-        Obj* obj;
-        ObjRange* range;
-    } as;
-};
+typedef uint64_t Value;
+static inline uint64_t doubleToU64(double d) { uint64_t u; memcpy(&u, &d, 8); return u; }
+static inline double   u64ToDouble(uint64_t u) { double d; memcpy(&d, &u, 8); return d; }
 
-#define AS_BOOL(value)    ((value).as.boolean)
-#define AS_NUMBER(value)  ((value).as.number)
-#define AS_OBJ(value)     ((value).as.obj)
-#define AS_RANGE(value)   ((ObjRange*)AS_OBJ(value))
-#define AS_STRING(value)  ((ObjString*)AS_OBJ(value))
-#define AS_CSTRING(value) (AS_STRING(value)->stringValue.c_str())
-#define AS_FUNCTION(value)((ObjFunction*)AS_OBJ(value))
-#define AS_NATIVE(value)  ((ObjNative*)AS_OBJ(value))
+#define QNAN     ((uint64_t)0x7FFC000000000000)
+#define TAG_NULL  1
+#define TAG_FALSE 2
+#define TAG_TRUE  3
 
-#define IS_BOOL(value)    ((value).type == VAL_BOOL)
-#define IS_NULL(value)    ((value).type == VAL_NULL)
-#define IS_NUMBER(value)  ((value).type == VAL_NUMBER)
-#define IS_OBJ(value)     ((value).type == VAL_OBJ)
-#define IS_RANGE(value)   (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_RANGE)
-#define IS_STRING(value)  (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_STRING)
-#define IS_FUNCTION(value)(IS_OBJ(value) && AS_OBJ(value)->type == OBJ_FUNCTION)
-#define IS_NATIVE(value)  (IS_OBJ(value) && AS_OBJ(value)->type == OBJ_NATIVE)
+//numbers
+#define IS_NUMBER(v)  (((v) & QNAN) != QNAN)
+#define AS_NUMBER(v)  (u64ToDouble(v))
+#define NUMBER_VAL(n) (doubleToU64((double)(n)))
 
-#define BOOL_VAL(value)   ((Value){VAL_BOOL,   {.boolean = value}})
-#define NULL_VAL          ((Value){VAL_NULL,   {.number = 0}})
-#define NUMBER_VAL(value) ((Value){VAL_NUMBER, {.number = value}})
-#define STRING_VAL(value) ((Value){VAL_OBJ,    {.obj = (Obj*)value}})
-#define OBJ_VAL(object)   ((Value){VAL_OBJ,    {.obj = (Obj*)object}})
-#define RANGE_VAL(value)  ((Value){VAL_OBJ,    {.obj = (Obj*)value}})
+//booleans
+#define NULL_VAL      ((Value)(QNAN | TAG_NULL))
+#define FALSE_VAL     ((Value)(QNAN | TAG_FALSE))
+#define TRUE_VAL      ((Value)(QNAN | TAG_TRUE))
+#define BOOL_VAL(v)   ((v)? TRUE_VAL : FALSE_VAL)
+#define IS_NULL(v)    ((v) == NULL_VAL)
+#define IS_BOOL(v)    (((v) & FALSE_VAL) == FALSE_VAL)
+#define AS_BOOL(v)    ((v) == TRUE_VAL)
 
-#define OBJ_TYPE(value)   (AS_OBJ(value)->type)
+//objects (pointers)
+#define SIGN_BIT          ((uint64_t)0x8000000000000000)
+#define AS_OBJ(v)         ((Obj*)(uintptr_t)((v) & ~(SIGN_BIT | QNAN)))
+#define AS_OBJ_TYPE(v, Type) ((Type*)AS_OBJ(v))
+#define IS_OBJ(v)         (((v) & (QNAN | SIGN_BIT)) == (QNAN | SIGN_BIT))
+#define IS_OBJ_TYPE(v, Type) (IS_OBJ(v) && AS_OBJ(v)->type == Type)
+#define OBJ_VAL(obj)      ((Value)(SIGN_BIT | QNAN | (uint64_t)(uintptr_t)(obj)))
+#define AS_CSTRING(v)     (AS_OBJ_TYPE(v, ObjString)->stringValue.c_str())
 
 struct ValueArray
 {

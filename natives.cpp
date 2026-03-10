@@ -28,7 +28,7 @@ Value inputNative(int argCount, Value* args) {
     }
     std::string line;
     std::getline(std::cin, line);
-    return STRING_VAL(copyString(line.c_str(), line.length()));
+    return OBJ_VAL(copyString(line.c_str(), line.length()));
 }
 // @endsection
 
@@ -160,99 +160,99 @@ Value randominNative(int argCount, Value* args) {
 
 // @section: String
 Value lenNative(int argCount, Value* args) {
-    return NUMBER_VAL((double)(AS_STRING(args[0])->stringValue.length()));
+    return NUMBER_VAL((double)(AS_OBJ_TYPE(args[0], ObjString)->stringValue.length()));
 }
 
 Value upperNative(int argCount, Value* args) {
-    std::string s = AS_STRING(args[0])->stringValue;
+    std::string s = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
     for (char& c : s) c = toupper(c);
-    return STRING_VAL(copyString(s.c_str(), s.length()));
+    return OBJ_VAL(copyString(s.c_str(), s.length()));
 }
 
 Value lowerNative(int argCount, Value* args) {
-    std::string s = AS_STRING(args[0])->stringValue;
+    std::string s = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
     for (char& c : s) c = tolower(c);
-    return STRING_VAL(copyString(s.c_str(), s.length()));
+    return OBJ_VAL(copyString(s.c_str(), s.length()));
 }
 
 Value trimNative(int argCount, Value* args) {
-    std::string s = AS_STRING(args[0])->stringValue;
+    std::string s = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
     size_t start = s.find_first_not_of(" \t\r\n");
     size_t end   = s.find_last_not_of(" \t\r\n");
-    if (start == std::string::npos) return STRING_VAL(copyString("", 0));
+    if (start == std::string::npos) return OBJ_VAL(copyString("", 0));
     s = s.substr(start, end - start + 1);
-    return STRING_VAL(copyString(s.c_str(), s.length()));
+    return OBJ_VAL(copyString(s.c_str(), s.length()));
 }
 
 Value substrNative(int argCount, Value* args) {
-    std::string s   = AS_STRING(args[0])->stringValue;
+    std::string s   = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
     int start       = (int)AS_NUMBER(args[1]);
     int len         = (int)AS_NUMBER(args[2]);
     std::string res = s.substr(start, len);
-    return STRING_VAL(copyString(res.c_str(), res.length()));
+    return OBJ_VAL(copyString(res.c_str(), res.length()));
 }
 
 Value containsNative(int argCount, Value* args) {
-    std::string s   = AS_STRING(args[0])->stringValue;
-    std::string sub = AS_STRING(args[1])->stringValue;
+    std::string s   = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
+    std::string sub = AS_OBJ_TYPE(args[1], ObjString)->stringValue;
     return BOOL_VAL(s.find(sub) != std::string::npos);
 }
 
 Value indexOfNative(int argCount, Value* args) {
-    std::string s   = AS_STRING(args[0])->stringValue;
-    std::string sub = AS_STRING(args[1])->stringValue;
+    std::string s   = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
+    std::string sub = AS_OBJ_TYPE(args[1], ObjString)->stringValue;
     size_t pos = s.find(sub);
     return NUMBER_VAL(pos == std::string::npos ? -1 : (double)pos);
 }
 
 Value charAtNative(int argCount, Value* args) {
-    std::string s = AS_STRING(args[0])->stringValue;
+    std::string s = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
     int idx       = (int)AS_NUMBER(args[1]);
     char c        = s[idx];
-    return STRING_VAL(copyString(&c, 1));
+    return OBJ_VAL(copyString(&c, 1));
 }
 
 Value charCodeNative(int argCount, Value* args) {
-    std::string s = AS_STRING(args[0])->stringValue;
+    std::string s = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
     int idx       = (int)AS_NUMBER(args[1]);
     return NUMBER_VAL((double)s[idx]);
 }
 
 Value fromCharCodeNative(int argCount, Value* args) {
     char c = (char)AS_NUMBER(args[0]);
-    return STRING_VAL(copyString(&c, 1));
+    return OBJ_VAL(copyString(&c, 1));
 }
 
 Value replaceNative(int argCount, Value* args) {
-    std::string s    = AS_STRING(args[0])->stringValue;
-    std::string from = AS_STRING(args[1])->stringValue;
-    std::string to   = AS_STRING(args[2])->stringValue;
+    std::string s    = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
+    std::string from = AS_OBJ_TYPE(args[1], ObjString)->stringValue;
+    std::string to   = AS_OBJ_TYPE(args[2], ObjString)->stringValue;
     size_t pos = 0;
     while ((pos = s.find(from, pos)) != std::string::npos) {
         s.replace(pos, from.length(), to);
         pos += to.length();
     }
-    return STRING_VAL(copyString(s.c_str(), s.length()));
+    return OBJ_VAL(copyString(s.c_str(), s.length()));
 }
 
 Value repeatNative(int argCount, Value* args) {
-    std::string s = AS_STRING(args[0])->stringValue;
+    std::string s = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
     int n         = (int)AS_NUMBER(args[1]);
     std::string res;
     res.reserve(s.length() * n);
     for (int i = 0; i < n; i++) res += s;
-    return STRING_VAL(copyString(res.c_str(), res.length()));
+    return OBJ_VAL(copyString(res.c_str(), res.length()));
 }
 
 Value startsWithNative(int argCount, Value* args) {
-    std::string s   = AS_STRING(args[0])->stringValue;
-    std::string pre = AS_STRING(args[1])->stringValue;
+    std::string s   = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
+    std::string pre = AS_OBJ_TYPE(args[1], ObjString)->stringValue;
     return BOOL_VAL(s.rfind(pre, 0) == 0);
 }
 
 Value endsWithNative(int argCount, Value* args) {
-    std::string s   = AS_STRING(args[0])->stringValue;
-    std::string suf = AS_STRING(args[1])->stringValue;
+    std::string s   = AS_OBJ_TYPE(args[0], ObjString)->stringValue;
+    std::string suf = AS_OBJ_TYPE(args[1], ObjString)->stringValue;
     if (suf.length() > s.length()) return BOOL_VAL(false);
     return BOOL_VAL(s.compare(s.length() - suf.length(), suf.length(), suf) == 0);
 }
@@ -264,9 +264,9 @@ Value endsWithNative(int argCount, Value* args) {
         if (IS_NUMBER(v)) return v;
         if (IS_BOOL(v))   return NUMBER_VAL((double)(AS_BOOL(v) ? 1 : 0));
         if (IS_NULL(v))   return NUMBER_VAL(0);
-        if (IS_STRING(v)) {
+        if (IS_OBJ_TYPE(v, OBJ_STRING)) {
             try {
-                double d = std::stod(AS_STRING(v)->stringValue);
+                double d = std::stod(AS_OBJ_TYPE(v, ObjString)->stringValue);
                 return NUMBER_VAL(d);
             } catch (...) {
                 return NUMBER_VAL(NAN);
@@ -277,20 +277,20 @@ Value endsWithNative(int argCount, Value* args) {
 
     Value toStringNative(int argCount, Value* args) {
         Value v = args[0];
-        if (IS_STRING(v)) return v;
+        if (IS_OBJ_TYPE(v, OBJ_STRING)) return v;
         if (IS_NUMBER(v)) {
             std::string s = std::to_string(AS_NUMBER(v));
             // trim trailing zeros
             s.erase(s.find_last_not_of('0') + 1);
             if (s.back() == '.') s.pop_back();
-            return STRING_VAL(copyString(s.c_str(), s.length()));
+            return OBJ_VAL(copyString(s.c_str(), s.length()));
         }
         if (IS_BOOL(v)) {
             const char* s = AS_BOOL(v) ? "true" : "false";
-            return STRING_VAL(copyString(s, strlen(s)));
+            return OBJ_VAL(copyString(s, strlen(s)));
         }
-        if (IS_NULL(v)) return STRING_VAL(copyString("null", 4));
-        return STRING_VAL(copyString("unknown", 7));
+        if (IS_NULL(v)) return OBJ_VAL(copyString("null", 4));
+        return OBJ_VAL(copyString("unknown", 7));
     }
 
     Value toBoolNative(int argCount, Value* args) {
@@ -298,28 +298,28 @@ Value endsWithNative(int argCount, Value* args) {
         if (IS_BOOL(v))   return v;
         if (IS_NULL(v))   return BOOL_VAL(false);
         if (IS_NUMBER(v)) return BOOL_VAL(AS_NUMBER(v) != 0);
-        if (IS_STRING(v)) return BOOL_VAL(AS_STRING(v)->stringValue.length() > 0);
+        if (IS_OBJ_TYPE(v, OBJ_STRING)) return BOOL_VAL(AS_OBJ_TYPE(v, ObjString)->stringValue.length() > 0);
         return BOOL_VAL(false);
     }
 
     Value typeOfNative(int argCount, Value* args) {
         Value v = args[0];
-        if (IS_BOOL(v))   return STRING_VAL(copyString("bool",     4));
-        if (IS_NULL(v))   return STRING_VAL(copyString("null",     4));
-        if (IS_NUMBER(v)) return STRING_VAL(copyString("number",   6));
-        if (IS_STRING(v)) return STRING_VAL(copyString("string",   6));
-        if (IS_OBJ(v) && OBJ_TYPE(v) == OBJ_FUNCTION) return STRING_VAL(copyString("function", 8));
-        if (IS_OBJ(v) && OBJ_TYPE(v) == OBJ_NATIVE)   return STRING_VAL(copyString("function", 8));
-        return STRING_VAL(copyString("unknown", 7));
+        if (IS_BOOL(v))   return OBJ_VAL(copyString("bool",     4));
+        else if (IS_NULL(v))   return OBJ_VAL(copyString("null",     4));
+        else if (IS_NUMBER(v)) return OBJ_VAL(copyString("number",   6));
+        else if (IS_OBJ_TYPE(v, OBJ_STRING)) return OBJ_VAL(copyString("string",   6));
+        else if (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_FUNCTION) return OBJ_VAL(copyString("function", 8));
+        else if (IS_OBJ(v) && AS_OBJ(v)->type == OBJ_NATIVE)   return OBJ_VAL(copyString("function", 8));
+        else return OBJ_VAL(copyString("unknown", 7));
     }
 
     Value isNumberNative(int argCount, Value* args) { return BOOL_VAL(IS_NUMBER(args[0])); }
-    Value isStringNative(int argCount, Value* args) { return BOOL_VAL(IS_STRING(args[0])); }
+    Value isStringNative(int argCount, Value* args) { return BOOL_VAL(IS_OBJ_TYPE(args[0], OBJ_STRING)); }
     Value isBoolNative  (int argCount, Value* args) { return BOOL_VAL(IS_BOOL  (args[0])); }
     Value isNullNative  (int argCount, Value* args) { return BOOL_VAL(IS_NULL  (args[0])); }
     Value isFuncNative  (int argCount, Value* args) {
         return BOOL_VAL(IS_OBJ(args[0]) && 
-            (OBJ_TYPE(args[0]) == OBJ_FUNCTION || OBJ_TYPE(args[0]) == OBJ_NATIVE));
+            (AS_OBJ(args[0])->type == OBJ_FUNCTION || AS_OBJ(args[0])->type == OBJ_NATIVE));
     }
     Value isNaNNative   (int argCount, Value* args) { return BOOL_VAL(IS_NUMBER(args[0]) && std::isnan(AS_NUMBER(args[0]))); }
     Value isInfNative   (int argCount, Value* args) { return BOOL_VAL(IS_NUMBER(args[0]) && std::isinf(AS_NUMBER(args[0]))); }

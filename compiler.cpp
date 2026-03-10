@@ -502,7 +502,7 @@ static void literal(bool canAssign) {
 static void string(bool canAssign) {
     int len = parser.previous.length;
     if (parser.current.type != TOKEN_INTERP_START) len--;
-    emitConstant(STRING_VAL(copyString(parser.previous.start, len)));
+    emitConstant(OBJ_VAL(copyString(parser.previous.start, len)));
 
     while (parser.current.type == TOKEN_INTERP_START) {
         advance();
@@ -515,7 +515,7 @@ static void string(bool canAssign) {
             advance();
             int segLen = parser.previous.length;
             if (parser.current.type != TOKEN_INTERP_START) segLen--;
-            emitConstant(STRING_VAL(copyString(parser.previous.start, segLen)));
+            emitConstant(OBJ_VAL(copyString(parser.previous.start, segLen)));
             emitByte(OP_ADD);
         }
     }
@@ -530,7 +530,7 @@ static void variable(bool canAssign) {
     auto emitGet = [&]() {
         if (isLocal) emitGlobalOp(OP_GET_LOCAL, OP_GET_LOCAL_BIG, localIdx_conState.first);
         else {
-            int nc = addConstant(currentChunk(), STRING_VAL(copyString(name.start, name.length)));
+            int nc = addConstant(currentChunk(), OBJ_VAL(copyString(name.start, name.length)));
             emitGlobalOp(OP_GET_GLOBAL, OP_GET_GLOBAL_BIG, nc);
         }
     };
@@ -538,7 +538,7 @@ static void variable(bool canAssign) {
         if (localIdx_conState.second) { error("Cannot assign a value to a constant."); return; }
         if (isLocal) emitGlobalOp(OP_SET_LOCAL, OP_SET_LOCAL_BIG, localIdx_conState.first);
         else {
-            int nc = addConstant(currentChunk(), STRING_VAL(copyString(name.start, name.length)));
+            int nc = addConstant(currentChunk(), OBJ_VAL(copyString(name.start, name.length)));
             emitGlobalOp(OP_SET_GLOBAL, OP_SET_GLOBAL_BIG, nc);
         }
     };
@@ -665,7 +665,7 @@ static void varDeclaration(bool isConst) {
     }
 
     int nameConstant = addConstant(currentChunk(),
-        STRING_VAL(copyString(name.start, name.length)));
+        OBJ_VAL(copyString(name.start, name.length)));
     emitGlobalOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, nameConstant);
     emitByte(isConst ? OP_CONST : OP_NOT_CONST);
 }
@@ -679,7 +679,7 @@ static void funcDeclaration() {
         declareLocal(name, false);
     } else {
         int nameConstant = addConstant(currentChunk(),
-            STRING_VAL(copyString(name.start, name.length)));
+            OBJ_VAL(copyString(name.start, name.length)));
         function(TYPE_FUNCTION);
         emitGlobalOp(OP_DEFINE_GLOBAL, OP_DEFINE_GLOBAL_BIG, nameConstant);
         emitByte(OP_NOT_CONST);

@@ -174,22 +174,19 @@ static inline std::string formatNumber(double n) {
 }
 
 inline std::string valueToString(Value v) {
-    switch (v.type) {
-        case VAL_NUMBER: return formatNumber(AS_NUMBER(v));
-        case VAL_BOOL:   return AS_BOOL(v) ? "true" : "false";
-        case VAL_NULL:   return "null";
-        case VAL_OBJ:
-            switch (OBJ_TYPE(v)) {
-                case OBJ_STRING: return AS_STRING(v)->stringValue;
-                default:         return "<obj>";
-            }
-        default: return "";
-    }
+    if (IS_NUMBER(v)) return formatNumber(AS_NUMBER(v));
+    else if (IS_BOOL(v)) return AS_BOOL(v) ? "true" : "false";
+    else if (IS_NULL(v)) return "null";
+    else if (IS_OBJ(v)) return AS_OBJ_TYPE(v, ObjString)->stringValue;
+    else return "unknown";
 }
 
 inline bool sameType(Value a, Value b){
-    if (IS_OBJ(a) && IS_OBJ(b)) return (OBJ_TYPE(a) == OBJ_TYPE(b));
-    return a.type == b.type;
+    if (IS_NUMBER(a) && IS_NUMBER(b)) return true;
+    else if (IS_BOOL(a) && IS_BOOL(b)) return true;
+    else if (IS_NULL(a) && IS_NULL(b)) return true;
+    else if (IS_OBJ(a) && IS_OBJ(b)) return AS_OBJ(a)->type == AS_OBJ(b)->type;
+    else return false;
 }
 
 static bool call(ObjFunction* function, int argCount) {
@@ -211,11 +208,11 @@ static bool call(ObjFunction* function, int argCount) {
 
 static bool callValue(Value callee, int argCount) {
     if (IS_OBJ(callee)) {
-        switch (OBJ_TYPE(callee)) {
+        switch (AS_OBJ(callee)->type) {
             case OBJ_FUNCTION:
-                return call(AS_FUNCTION(callee), argCount);
+                return call(AS_OBJ_TYPE(callee, ObjFunction), argCount);
             case OBJ_NATIVE: {
-                ObjNative* native = AS_NATIVE(callee);
+                ObjNative* native = AS_OBJ_TYPE(callee, ObjNative);
                 Value result = native->function(argCount, vm.stackTop - argCount);
                 vm.stackTop -= argCount + 1;
                 push(result);
@@ -294,23 +291,23 @@ static InterpretResult run() {
     #define STRING_ADD() do { \
         Value _b = pop(); \
         std::string result = valueToString(*(vm.stackTop - 1)) + valueToString(_b); \
-        *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
+        *(vm.stackTop - 1) = OBJ_VAL(allocateString(result)); \
     } while (false)
 
     #define STRING_MULTIPLY() do { \
         if (IS_NUMBER(peek(0))) { \
             int n = std::max(0, (int)AS_NUMBER(pop())); \
             std::string result; \
-            result.reserve(AS_STRING(*(vm.stackTop-1))->stringValue.size() * n); \
-            for (int i = 0; i < n; i++) result += AS_STRING(*(vm.stackTop-1))->stringValue; \
-            *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
+            result.reserve(AS_OBJ_TYPE(*(vm.stackTop-1), ObjString)->stringValue.size() * n); \
+            for (int i = 0; i < n; i++) result += AS_OBJ_TYPE(*(vm.stackTop-1), ObjString)->stringValue; \
+            *(vm.stackTop - 1) = OBJ_VAL(allocateString(result)); \
         } else { \
-            std::string s = AS_STRING(pop())->stringValue; \
+            std::string s = AS_OBJ_TYPE(pop(), ObjString)->stringValue; \
             int n = std::max(0, (int)AS_NUMBER(*(vm.stackTop - 1))); \
             std::string result; \
             result.reserve(s.size() * n); \
             for (int i = 0; i < n; i++) result += s; \
-            *(vm.stackTop - 1) = STRING_VAL(allocateString(result)); \
+            *(vm.stackTop - 1) = OBJ_VAL(allocateString(result)); \
         } \
     } while (false)
 
@@ -332,18 +329,17 @@ static InterpretResult run() {
 
             case OP_CONSTANT:     { push(READ_CONSTANT());            break; }
             case OP_CONSTANT_BIG: { push(READ_CONSTANT_BIG());        break; }
-
             case OP_ADD: {
-                if      (IS_STRING(peek(0)) || IS_STRING(peek(1)))            { STRING_ADD(); }
-                else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1)))            { BINARY_OP(NUMBER_VAL, +); }
+                if (IS_OBJ_TYPE(peek(0), OBJ_STRING) || IS_OBJ_TYPE(peek(1), OBJ_STRING)) STRING_ADD();
+                else if (IS_NUMBER(peek(0)) && IS_NUMBER(peek(1))) BINARY_OP(NUMBER_VAL, +);
                 else { runtimeError("Operands must be two numbers or at least one string."); return INTERPRET_RUNTIME_ERROR; }
                 break;
             }
             case OP_SUBTRACT:     { BINARY_OP(NUMBER_VAL, -);          break; }
             case OP_MULTIPLY: {
-                if      (IS_STRING(peek(0)) && IS_NUMBER(peek(1)))            { STRING_MULTIPLY(); }
-                else if (IS_NUMBER(peek(0)) && IS_STRING(peek(1)))            { STRING_MULTIPLY(); }
-                else                                                           { BINARY_OP(NUMBER_VAL, *); }
+                if (IS_OBJ_TYPE(peek(0), OBJ_STRING) && IS_NUMBER(peek(1))) STRING_MULTIPLY();
+                else if (IS_NUMBER(peek(0)) && IS_OBJ_TYPE(peek(1), OBJ_STRING)) STRING_MULTIPLY();
+                else BINARY_OP(NUMBER_VAL, *);
                 break;
             }
             case OP_DIVIDE:       { BINARY_OP(NUMBER_VAL, /);          break; }
@@ -393,13 +389,13 @@ static InterpretResult run() {
             case OP_AND: { break; }
             //globals
             case OP_DEFINE_GLOBAL: {
-                std::string name = AS_STRING(READ_CONSTANT())->stringValue;
+                std::string name = AS_OBJ_TYPE(READ_CONSTANT(), ObjString)->stringValue;
                 bool isConst = (READ_BYTE() == OP_CONST);
                 vm.globals[name] = {pop(), isConst};
                 break;
             }
             case OP_GET_GLOBAL: {
-                std::string name = AS_STRING(READ_CONSTANT())->stringValue;
+                std::string name = AS_OBJ_TYPE(READ_CONSTANT(), ObjString)->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
@@ -409,7 +405,7 @@ static InterpretResult run() {
                 break;
             }
             case OP_SET_GLOBAL: {
-                std::string name = AS_STRING(READ_CONSTANT())->stringValue;
+                std::string name = AS_OBJ_TYPE(READ_CONSTANT(), ObjString)->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
@@ -423,13 +419,13 @@ static InterpretResult run() {
                 break;
             }
             case OP_DEFINE_GLOBAL_BIG: {
-                std::string name = AS_STRING(READ_CONSTANT_BIG())->stringValue;
+                std::string name = AS_OBJ_TYPE(READ_CONSTANT_BIG(), ObjString)->stringValue;
                 bool isConst = (READ_BYTE() == OP_CONST);
                 vm.globals[name] = {pop(), isConst};
                 break;
             }
             case OP_GET_GLOBAL_BIG: {
-                std::string name = AS_STRING(READ_CONSTANT_BIG())->stringValue;
+                std::string name = AS_OBJ_TYPE(READ_CONSTANT_BIG(), ObjString)->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
@@ -439,7 +435,7 @@ static InterpretResult run() {
                 break;
             }
             case OP_SET_GLOBAL_BIG: {
-                std::string name = AS_STRING(READ_CONSTANT_BIG())->stringValue;
+                std::string name = AS_OBJ_TYPE(READ_CONSTANT_BIG(), ObjString)->stringValue;
                 auto it = vm.globals.find(name);
                 if (it == vm.globals.end()) {
                     runtimeError("Undefined variable '%s'.", name.c_str());
@@ -498,11 +494,11 @@ static InterpretResult run() {
                 double step  = AS_NUMBER(pop());
                 double right = AS_NUMBER(pop());
                 double left  = AS_NUMBER(pop());
-                push(RANGE_VAL(allocateRange(left, right, step)));
+                push(OBJ_VAL(allocateRange(left, right, step)));
                 break;
             }
             case OP_FOR_ITERATE: {
-                ObjRange* range = AS_RANGE(peek(1));
+                ObjRange* range = AS_OBJ_TYPE(peek(1), ObjRange);
                 double direction = range->right - range->left;
                 if (direction == 0 ||
                     (direction < 0 && range->current <= range->right) ||
@@ -526,8 +522,8 @@ static InterpretResult run() {
             }
             //misc
             case OP_STRINGIFY: {
-                if (!IS_STRING(peek(0))) {
-                    *(vm.stackTop - 1) = STRING_VAL(allocateString(valueToString(*(vm.stackTop - 1))));
+                if (!IS_OBJ_TYPE(peek(0), OBJ_STRING)) {
+                    *(vm.stackTop - 1) = OBJ_VAL(allocateString(valueToString(*(vm.stackTop - 1))));
                 }
                 break;
             }
